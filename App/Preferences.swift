@@ -32,7 +32,7 @@ struct Preferences: Codable, Equatable {
 
     func startArguments() throws -> [String] {
         guard Self.minutesRange.contains(minutes), Self.batteryRange.contains(minimumBattery) else {
-            throw AppFailure(code: .invalidInput, detail: "時間は1〜1440分、バッテリー下限は5〜95%です。")
+            throw AppFailure(code: .invalidInput, detail: L10n.text("時間は1〜1440分、バッテリー下限は5〜95%です。"))
         }
         // Locking is handled by the native app after the runtime has finished.
         return ["_start", "--minutes", String(minutes), "--min-battery", String(minimumBattery)]

@@ -44,7 +44,7 @@ final class GlobalHotKey {
             let failure = error
             do { try register(self.key) }
             catch {
-                throw AppFailure(code: .shortcut, detail: "\(failure.localizedDescription) 元のショートカットの復元にも失敗しました：\(error.localizedDescription)")
+                throw AppFailure(code: .shortcut, detail: L10n.text("%@ 元のショートカットの復元にも失敗しました：%@", failure.localizedDescription, error.localizedDescription))
             }
             throw failure
         }

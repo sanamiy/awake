@@ -1,5 +1,6 @@
 import XCTest
 import AppKit
+import SwiftUI
 
 @MainActor
 final class AppModelTests: XCTestCase {
@@ -65,6 +66,25 @@ final class AppModelTests: XCTestCase {
         if let directory { try FileManager.default.removeItem(at: directory) }
     }
 
+    func testSettingsRenderAtMinimumWidthWithLocalizedError() throws {
+        _ = NSApplication.shared
+        model.failure = AppFailure(code: .installation)
+        let host = NSHostingView(rootView: ContentView(model: model)
+            .frame(width: 480, height: 700)
+            .background(Color(nsColor: .windowBackgroundColor)))
+        host.setFrameSize(host.fittingSize)
+        host.layoutSubtreeIfNeeded()
+        let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        let data = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+        let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.png")
+        attachment.name = "settings-480-localized-error"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        XCTAssertEqual(host.bounds.width, 480)
+        XCTAssertTrue(lifecycleCalls.isEmpty)
+    }
+
     private var progress: UninstallProgress {
         .init(url: directory.appendingPathComponent("uninstall-state"))
     }
@@ -121,7 +141,7 @@ final class AppModelTests: XCTestCase {
         try FileManager.default.removeItem(at: directory.appendingPathComponent("installed-cli"))
         await expectFailure(.start, .installation)
         XCTAssertTrue(model.needsRepair)
-        XCTAssertTrue(model.installationFailure?.detail?.contains("内部CLI") == true)
+        XCTAssertTrue(model.installationFailure?.detail?.contains(L10n.text("内部CLIが見つからないか、内容または実行権限が一致しません。")) == true)
         XCTAssertNil(model.failure, "The installation section already displays this failure")
         XCTAssertEqual(session.phase, .idle)
         XCTAssertFalse(model.needsRecovery)
@@ -191,7 +211,7 @@ final class AppModelTests: XCTestCase {
         await expectFailure(.start, .runtimeUnavailable)
         XCTAssertFalse(model.needsRecovery, "Successful rollback takes precedence over the original start error")
         XCTAssertEqual(session.phase, .idle)
-        XCTAssertFalse(model.failure?.localizedDescription.contains("停止を再試行") ?? true,
+        XCTAssertFalse(model.failure?.localizedDescription.contains(L10n.text("停止を再試行")) ?? true,
                        "Do not instruct the user to use a recovery button that is not shown")
     }
 

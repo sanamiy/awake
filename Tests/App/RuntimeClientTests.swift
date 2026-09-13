@@ -79,9 +79,9 @@ final class RuntimeClientTests: XCTestCase {
     func testMissingOrOutdatedRuntimeRequiresSetupWithoutExecutingIt() async throws {
         let runner = StubRunner(results: [])
         try Data("old-runtime".utf8).write(to: files.installedCLI)
-        await assertInstallationFailure(client(runner), component: "内部CLI")
+        await assertInstallationFailure(client(runner), component: L10n.text("内部CLIが見つからないか、内容または実行権限が一致しません。"))
         try FileManager.default.removeItem(at: files.installedCLI)
-        await assertInstallationFailure(client(runner), component: "内部CLI")
+        await assertInstallationFailure(client(runner), component: L10n.text("内部CLIが見つからないか、内容または実行権限が一致しません。"))
         let calls = await runner.calls
         XCTAssertTrue(calls.isEmpty)
     }
@@ -102,36 +102,36 @@ final class RuntimeClientTests: XCTestCase {
     func testEitherMissingPermissionRequiresSetup() async throws {
         for codes: [Int32] in [[1], [0, 1]] {
             let runner = StubRunner(results: codes.map { CommandResult(code: $0, text: "") })
-            await assertInstallationFailure(client(runner), component: "電源制御権限")
+            await assertInstallationFailure(client(runner), component: L10n.text("電源制御権限（disablesleep %@）", String(codes.count - 1)))
         }
     }
 
     func testMissingCorruptOrMisconfiguredRecoveryAgentRequiresRepair() async throws {
         let runner = StubRunner(results: [])
         try FileManager.default.removeItem(at: files.recoveryAgent)
-        await assertInstallationFailure(client(runner), component: "復旧用LaunchAgent")
+        await assertInstallationFailure(client(runner), component: L10n.text("復旧用LaunchAgentの設定が見つからないか、内容が一致しません。"))
         try Data("not a plist".utf8).write(to: files.recoveryAgent)
-        await assertInstallationFailure(client(runner), component: "復旧用LaunchAgent")
+        await assertInstallationFailure(client(runner), component: L10n.text("復旧用LaunchAgentの設定が見つからないか、内容が一致しません。"))
         try files.writeAgent(arguments: ["/wrong/runtime", "_recover"])
-        await assertInstallationFailure(client(runner), component: "復旧用LaunchAgent")
+        await assertInstallationFailure(client(runner), component: L10n.text("復旧用LaunchAgentの設定が見つからないか、内容が一致しません。"))
         try files.writeAgent(runAtLoad: false)
-        await assertInstallationFailure(client(runner), component: "復旧用LaunchAgent")
+        await assertInstallationFailure(client(runner), component: L10n.text("復旧用LaunchAgentの設定が見つからないか、内容が一致しません。"))
         try files.writeAgent(associatedBundles: nil)
-        await assertInstallationFailure(client(runner), component: "復旧用LaunchAgent")
+        await assertInstallationFailure(client(runner), component: L10n.text("復旧用LaunchAgentの設定が見つからないか、内容が一致しません。"))
         try files.writeAgent(associatedBundles: ["example.wrong.app"])
-        await assertInstallationFailure(client(runner), component: "復旧用LaunchAgent")
+        await assertInstallationFailure(client(runner), component: L10n.text("復旧用LaunchAgentの設定が見つからないか、内容が一致しません。"))
         let calls = await runner.calls
         XCTAssertTrue(calls.isEmpty)
     }
 
     func testUnregisteredRecoveryAgentRequiresRepair() async throws {
         let runner = StubRunner(results: [0, 0, 1].map { CommandResult(code: Int32($0), text: "") })
-        await assertInstallationFailure(client(runner), component: "復旧サービスの登録")
+        await assertInstallationFailure(client(runner), component: L10n.text("復旧サービスの登録"))
     }
 
     func testNonExecutableRuntimeRequiresRepair() async throws {
         try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: files.installedCLI.path)
-        await assertInstallationFailure(client(StubRunner(results: [])), component: "内部CLI")
+        await assertInstallationFailure(client(StubRunner(results: [])), component: L10n.text("内部CLIが見つからないか、内容または実行権限が一致しません。"))
     }
 
     func testMissingCLIReportsFailureWithoutSwitchingImplementations() async {
@@ -156,7 +156,7 @@ final class RuntimeClientTests: XCTestCase {
     }
 
     func testDiagnosisRetainsComponentWhenProcessCannotLaunch() async {
-        await assertInstallationFailure(client(StubRunner(results: [])), component: "電源制御権限")
+        await assertInstallationFailure(client(StubRunner(results: [])), component: L10n.text("電源制御権限（disablesleep %@）", "0"))
     }
 
     private func assertInstallationFailure(_ runtime: RuntimeClient, component: String,

@@ -20,7 +20,7 @@ struct DirectScreenLock {
         guard let source = CGEventSource(stateID: .privateState),
               let down = CGEvent(keyboardEventSource: source, virtualKey: 12, keyDown: true),
               let up = CGEvent(keyboardEventSource: source, virtualKey: 12, keyDown: false) else {
-            throw AppFailure(code: .screenLock, detail: "画面ロック用のキー操作を作成できませんでした。")
+            throw AppFailure(code: .screenLock, detail: L10n.text("画面ロック用のキー操作を作成できませんでした。"))
         }
         down.flags = [.maskControl, .maskCommand]
         up.flags = [.maskControl, .maskCommand]
@@ -78,7 +78,7 @@ final class ScreenLockSession {
             phase = .needsStop
             do { try await restore(); didStop() }
             catch {
-                throw AppFailure(code: .powerRestore, detail: "開始時: \(original.localizedDescription)\n解除時: \(error.localizedDescription)")
+                throw AppFailure(code: .powerRestore, detail: L10n.text("開始時: %@\n解除時: %@", original.localizedDescription, error.localizedDescription))
             }
             throw original
         }

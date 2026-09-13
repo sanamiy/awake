@@ -1,4 +1,6 @@
 name: LidAwake
+options:
+  developmentLanguage: en
 configFiles:
   Debug: config/Product.xcconfig
   Release: config/Product.xcconfig
@@ -46,6 +48,7 @@ targets:
         # Tests must not inherit the application's NSPrincipalClass/LSUIElement.
         INFOPLIST_FILE: ''
         GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDevelopmentRegion: en
         CODE_SIGN_IDENTITY: '-'
 schemes:
   LidAwake:

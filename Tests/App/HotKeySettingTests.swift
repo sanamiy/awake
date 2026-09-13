@@ -70,7 +70,7 @@ final class HotKeySettingTests: XCTestCase {
             XCTAssertEqual(fixture.saved.count, 1)
             XCTAssertNil(fixture.key)
             XCTAssertFalse(button.recording)
-            XCTAssertEqual(button.title, "クリックして設定")
+            XCTAssertEqual(button.title, L10n.text("クリックして設定"))
         }
     }
 
@@ -78,7 +78,7 @@ final class HotKeySettingTests: XCTestCase {
         try withSetting { fixture, _, button in
             fixture.key = nil
             settle()
-            XCTAssertEqual(button.title, "クリックして設定")
+            XCTAssertEqual(button.title, L10n.text("クリックして設定"))
             button.performClick(nil)
             sendKey(.keyDown, to: button)
             sendKey(.keyUp, to: button)
@@ -114,7 +114,7 @@ final class HotKeySettingTests: XCTestCase {
         try withSetting(header: true, width: 480, colorScheme: .dark) { fixture, host, button in
             fixture.key = nil
             settle()
-            XCTAssertEqual(button.title, "クリックして設定")
+            XCTAssertEqual(button.title, L10n.text("クリックして設定"))
             try attach(host, name: "header-480-dark-unset")
         }
     }

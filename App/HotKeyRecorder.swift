@@ -29,7 +29,7 @@ struct HotKeyRecorder: NSViewRepresentable {
     final class RecorderButton: NSButton {
         var onSelect: ((HotKey) -> Void)?
         var onRecordingChange: ((Bool) -> Void)?
-        var savedTitle = "キーを設定"
+        var savedTitle = L10n.text("キーを設定")
         private enum CaptureState {
             case idle, waitingForKey, waitingForRelease(HotKey)
         }
@@ -47,7 +47,7 @@ struct HotKeyRecorder: NSViewRepresentable {
             window?.makeFirstResponder(self)
             captureState = .waitingForKey
             onRecordingChange?(true)
-            title = "キーを入力"
+            title = L10n.text("キーを入力")
             // Consume app key equivalents before menus or other responders can
             // execute them. No global event tap or Accessibility permission.
             eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp, .leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
@@ -118,7 +118,7 @@ struct HotKeyRecorder: NSViewRepresentable {
             if event.keyCode == 53 { finishRecording(); return }
             guard case .waitingForKey = captureState else { return }
             guard let key = HotKey(event: event) else {
-                title = "⌘ / ⌃ が必要"
+                title = L10n.text("⌘ / ⌃ が必要")
                 return
             }
             captureState = .waitingForRelease(key)

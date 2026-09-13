@@ -9,23 +9,23 @@ struct HotKeySetting: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
-                HotKeyRecorder(title: key?.label ?? "クリックして設定", onSelect: save,
+                HotKeyRecorder(title: key?.label ?? L10n.text("クリックして設定"), onSelect: save,
                                onRecordingChange: { recording in
                     if recording { error = nil }
                     onEditingChange(recording)
                 })
                 .frame(width: 130, height: 28)
-                .accessibilityLabel("開始ショートカットを設定")
-                .accessibilityValue(key?.label ?? "未設定")
+                .accessibilityLabel(L10n.text("開始ショートカットを設定"))
+                .accessibilityValue(key?.label ?? L10n.text("未設定"))
                 .accessibilityIdentifier("edit-hotkey")
-                .help("クリックしてキーを入力し、離すと登録します。Escまたは欄外クリックでキャンセルします。")
+                .help(L10n.text("クリックしてキーを入力し、離すと登録します。Escまたは欄外クリックでキャンセルします。"))
                 Button { save(nil) } label: {
                     Image(systemName: "xmark")
                 }
                 .disabled(key == nil)
-                .accessibilityLabel("ショートカットの割り当てを解除")
+                .accessibilityLabel(L10n.text("ショートカットの割り当てを解除"))
                 .accessibilityIdentifier("clear-hotkey")
-                .help("割り当てを解除")
+                .help(L10n.text("割り当てを解除"))
             }
             if let error {
                 Text(error).font(.caption).foregroundStyle(.red)

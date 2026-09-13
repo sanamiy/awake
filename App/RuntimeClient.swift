@@ -39,7 +39,7 @@ struct RuntimeClient {
               let bundled = try? Data(contentsOf: bundledCLI),
               installed == bundled,
               FileManager.default.isExecutableFile(atPath: installedCLI.path) else {
-            throw AppFailure(code: .installation, detail: "内部CLIが見つからないか、内容または実行権限が一致しません。")
+            throw AppFailure(code: .installation, detail: L10n.text("内部CLIが見つからないか、内容または実行権限が一致しません。"))
         }
     }
 
@@ -50,7 +50,7 @@ struct RuntimeClient {
               agent["AssociatedBundleIdentifiers"] as? [String] == [AppIdentity.bundleIdentifier],
               agent["ProgramArguments"] as? [String] == [installedCLI.path, "_recover"],
               agent["RunAtLoad"] as? Bool == true else {
-            throw AppFailure(code: .installation, detail: "復旧用LaunchAgentの設定が見つからないか、内容が一致しません。")
+            throw AppFailure(code: .installation, detail: L10n.text("復旧用LaunchAgentの設定が見つからないか、内容が一致しません。"))
         }
     }
 
@@ -59,18 +59,18 @@ struct RuntimeClient {
         for state in ["0", "1"] {
             try await checkRegistrationCommand(URL(fileURLWithPath: "/usr/bin/sudo"),
                 arguments: ["-n", "-l", "/usr/bin/pmset", "-a", "disablesleep", state],
-                component: "電源制御権限（disablesleep \(state)）")
+                component: L10n.text("電源制御権限（disablesleep %@）", state))
         }
         try await checkRegistrationCommand(URL(fileURLWithPath: "/bin/launchctl"),
-            arguments: ["print", "gui/\(userID)/dev.lid-awake.recover"], component: "復旧サービスの登録")
+            arguments: ["print", "gui/\(userID)/dev.lid-awake.recover"], component: L10n.text("復旧サービスの登録"))
     }
 
     private func checkRegistrationCommand(_ executable: URL, arguments: [String], component: String) async throws {
         let result: CommandResult
         do { result = try await runner.run(executable, arguments: arguments, environment: [:]) }
-        catch { throw AppFailure(code: .installation, detail: "\(component)を確認できません。\n\(error.localizedDescription)") }
+        catch { throw AppFailure(code: .installation, detail: L10n.text("%@を確認できません。\n%@", component, error.localizedDescription)) }
         guard result.code == 0 else {
-            throw AppFailure(code: .installation, detail: "\(component)を確認できません。終了値: \(result.code)\n\(result.text)")
+            throw AppFailure(code: .installation, detail: L10n.text("%@を確認できません。終了値: %@\n%@", component, String(result.code), result.text))
         }
     }
 
@@ -101,7 +101,7 @@ struct RuntimeClient {
         guard result.code == 0 else {
             let code = FailureCode.runtimeExit(result.code)
             throw AppFailure(code: code == .unexpected ? unexpectedExit : code,
-                             detail: "終了値: \(result.code)\n\(result.text)")
+                             detail: L10n.text("終了値: %@\n%@", String(result.code), result.text))
         }
     }
 }

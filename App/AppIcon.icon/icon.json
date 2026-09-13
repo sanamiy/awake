@@ -1,10 +1,23 @@
 {
-  "fill": {
-    "linear-gradient": [
-      "srgb:0.40000,0.80392,0.97647,1.00000",
-      "srgb:0.02745,0.52941,0.94902,1.00000"
-    ]
-  },
+  "fill-specializations": [
+    {
+      "value": {
+        "linear-gradient": [
+          "srgb:0.40000,0.80392,0.97647,1.00000",
+          "srgb:0.02745,0.52941,0.94902,1.00000"
+        ]
+      }
+    },
+    {
+      "appearance": "dark",
+      "value": {
+        "linear-gradient": [
+          "srgb:0.07843,0.16863,0.27451,1.00000",
+          "srgb:0.02745,0.07451,0.12549,1.00000"
+        ]
+      }
+    }
+  ],
   "groups": [
     {
       "name": "04 — Center glow",
@@ -29,6 +42,17 @@
         {
           "glass": true,
           "image-name": "02-lid.svg",
+          "fill-specializations": [
+            {
+              "appearance": "dark",
+              "value": {
+                "linear-gradient": [
+                  "srgb:0.91373,0.96471,1.00000,1.00000",
+                  "srgb:0.65882,0.78431,0.90196,1.00000"
+                ]
+              }
+            }
+          ],
           "name": "Silver lid"
         }
       ],
@@ -47,6 +71,17 @@
         {
           "glass": true,
           "image-name": "03-base.svg",
+          "fill-specializations": [
+            {
+              "appearance": "dark",
+              "value": {
+                "linear-gradient": [
+                  "srgb:0.76863,0.87451,0.93725,1.00000",
+                  "srgb:0.42745,0.64314,0.79216,1.00000"
+                ]
+              }
+            }
+          ],
           "name": "Notched front edge"
         }
       ],
@@ -66,6 +101,14 @@
           "glass": false,
           "hidden": false,
           "image-name": "01-awake.svg",
+          "fill-specializations": [
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "srgb:0.86667,0.96863,1.00000,1.00000"
+              }
+            }
+          ],
           "name": "White sparkle"
         }
       ],

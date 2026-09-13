@@ -29,6 +29,19 @@ Xcodeは共通設定を直接参照します。[scripts/configure.py](../scripts
 
 Swift側の対応テストは [Tests/App/](../Tests/App/)、CLI・PKG・生成設定のテストは [Tests/Scripts/](../Tests/Scripts/) にあります。
 
+## アプリの多言語対応
+
+表示文言は `App/ja.lproj/Localizable.strings` と `App/en.lproj/Localizable.strings` にまとめ、SwiftUI・AppKit・アプリのエラー案内で `L10n.text` を使います。日本語の原文をキーにし、差し込みには `%@` と文字列引数を使います。`Awake Mode`、ショートカットのキー表記、エラーコードなどの識別子は翻訳しません。
+
+言語の選択はFoundationのBundleに任せます。macOSの優先言語とアプリ別の言語指定に従い、開発言語の英語をフォールバックにします。独自の言語設定は保存しません。変更後はアプリの再起動が必要です。内部CLI・インストーラーの診断出力やOS由来のエラーは原文のまま保持します。READMEとPKGの案内文は、このアプリUIの翻訳とは別です。
+
+文言を追加・変更する際は両言語のキーと引数を合わせて更新します。`LocalizationTests` が同梱リソース、キーの網羅、差し込み、言語選択を検証します。日本語に固定された表示テストは作らず、各言語でテストを実行してください。
+
+```sh
+xcodebuild -project LidAwake.xcodeproj -scheme LidAwake -destination 'platform=macOS' -derivedDataPath .build-tests -testLanguage en -testRegion US test
+xcodebuild -project LidAwake.xcodeproj -scheme LidAwake -destination 'platform=macOS' -derivedDataPath .build-tests -testLanguage ja -testRegion JP test
+```
+
 ## 電源制御と権限
 
 開始・停止の条件は[製品仕様](SPEC.md)で定義します。CLIは15秒間隔で時間・残量・電源状態を監視し、開始・時間の更新・停止・復旧・ランタイム更新・アンインストールを排他制御します。自動解除に失敗した場合も同じ間隔で再試行し、ログイン時は前回異常終了した自分のセッションだけを復旧します。

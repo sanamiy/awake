@@ -11,27 +11,27 @@ enum FailureCode: String {
 
     var message: String {
         switch self {
-        case .invalidInput: return "入力値を確認してください。"
-        case .busy: return "別の操作が実行中です。完了してから再試行してください。"
-        case .installation: return "インストール内容を確認できません。\(AppIdentity.name)を終了し、利用するユーザーでログインした状態で\(AppIdentity.name)のPKGインストーラーを再実行してください。停止に失敗して終了できない場合は、先に「停止を再試行」を実行してください。"
-        case .runtimeUnavailable: return "内部CLIを実行できません。PKGによる修復が必要です。停止・終了もできない場合は、READMEの「解除できない場合」の手順を確認してください。"
-        case .powerRestore: return "スリープ防止を解除できませんでした。停止を再試行してください。"
-        case .powerUnknown: return "電源状態を確認できません。安全を確認できるまで終了しません。"
-        case .authorizationCancelled: return "管理者認証をキャンセルしました。"
-        case .authorizationFailed: return "管理者認証による操作に失敗しました。"
-        case .foreignSession: return "\(AppIdentity.name)のセッションではないため、電源設定を変更しません。別のスリープ制御ツールで解除してから再試行してください。"
-        case .batteryLow: return "バッテリー残量が設定した下限以下のため開始しません。"
-        case .powerStart: return "スリープ防止を開始できませんでした。"
-        case .runtimeRemoval: return "電源制御の設定を削除できませんでした。アンインストールを再試行してください。"
-        case .loginRemoval: return "電源制御の設定は削除しましたが、ログイン時の起動を解除できませんでした。アンインストールを再試行してください。"
-        case .uninstallPending: return "アンインストール中のため開始できません。画面の案内に従って削除を完了してください。"
-        case .invalidTarget: return "アンインストール対象の\(AppIdentity.name)アプリを確認できませんでした。"
-        case .shortcut: return "ショートカットを登録できませんでした。別のキーを選んでください。"
-        case .screenLock: return "画面ロックを確認できませんでした。"
-        case .screenPermission: return "画面ロックにはアクセシビリティの許可が必要です。システム設定で\(AppIdentity.name)を許可してください。"
-        case .loginStartup: return "ログイン時の自動起動を登録できませんでした。\(AppIdentity.name)を終了して開き直してください。"
-        case .displaySleep: return "蓋を閉じた後の画面消灯を要求できませんでした。"
-        case .unexpected: return "処理に失敗しました。"
+        case .invalidInput: return L10n.text("入力値を確認してください。")
+        case .busy: return L10n.text("別の操作が実行中です。完了してから再試行してください。")
+        case .installation: return L10n.text("インストール内容を確認できません。%@を終了し、利用するユーザーでログインした状態で%@のPKGインストーラーを再実行してください。停止に失敗して終了できない場合は、先に「停止を再試行」を実行してください。", AppIdentity.name, AppIdentity.name)
+        case .runtimeUnavailable: return L10n.text("内部CLIを実行できません。PKGによる修復が必要です。停止・終了もできない場合は、READMEの「解除できない場合」の手順を確認してください。")
+        case .powerRestore: return L10n.text("スリープ防止を解除できませんでした。停止を再試行してください。")
+        case .powerUnknown: return L10n.text("電源状態を確認できません。安全を確認できるまで終了しません。")
+        case .authorizationCancelled: return L10n.text("管理者認証をキャンセルしました。")
+        case .authorizationFailed: return L10n.text("管理者認証による操作に失敗しました。")
+        case .foreignSession: return L10n.text("%@のセッションではないため、電源設定を変更しません。別のスリープ制御ツールで解除してから再試行してください。", AppIdentity.name)
+        case .batteryLow: return L10n.text("バッテリー残量が設定した下限以下のため開始しません。")
+        case .powerStart: return L10n.text("スリープ防止を開始できませんでした。")
+        case .runtimeRemoval: return L10n.text("電源制御の設定を削除できませんでした。アンインストールを再試行してください。")
+        case .loginRemoval: return L10n.text("電源制御の設定は削除しましたが、ログイン時の起動を解除できませんでした。アンインストールを再試行してください。")
+        case .uninstallPending: return L10n.text("アンインストール中のため開始できません。画面の案内に従って削除を完了してください。")
+        case .invalidTarget: return L10n.text("アンインストール対象の%@アプリを確認できませんでした。", AppIdentity.name)
+        case .shortcut: return L10n.text("ショートカットを登録できませんでした。別のキーを選んでください。")
+        case .screenLock: return L10n.text("画面ロックを確認できませんでした。")
+        case .screenPermission: return L10n.text("画面ロックにはアクセシビリティの許可が必要です。システム設定で%@を許可してください。", AppIdentity.name)
+        case .loginStartup: return L10n.text("ログイン時の自動起動を登録できませんでした。%@を終了して開き直してください。", AppIdentity.name)
+        case .displaySleep: return L10n.text("蓋を閉じた後の画面消灯を要求できませんでした。")
+        case .unexpected: return L10n.text("処理に失敗しました。")
         }
     }
 

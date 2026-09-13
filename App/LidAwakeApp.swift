@@ -87,17 +87,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let menu = NSMenu()
         let appItem = NSMenuItem()
         let appMenu = NSMenu(title: AppIdentity.name)
-        let settings = appMenu.addItem(withTitle: "設定を開く…", action: #selector(showSettings), keyEquivalent: ",")
+        let settings = appMenu.addItem(withTitle: L10n.text("設定を開く…"), action: #selector(showSettings), keyEquivalent: ",")
         settings.target = self
-        appMenu.addItem(withTitle: "ウインドウを閉じる", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        appMenu.addItem(withTitle: L10n.text("ウインドウを閉じる"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "スリープ防止を停止して終了", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: L10n.text("スリープ防止を停止して終了"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
         menu.addItem(appItem)
         let edit = NSMenuItem()
-        edit.submenu = NSMenu(title: "編集")
-        for (title, action, key) in [("取り消す", "undo:", "z"), ("カット", "cut:", "x"),
-                                    ("コピー", "copy:", "c"), ("ペースト", "paste:", "v"), ("すべてを選択", "selectAll:", "a")] {
+        edit.submenu = NSMenu(title: L10n.text("編集"))
+        for (title, action, key) in [(L10n.text("取り消す"), "undo:", "z"), (L10n.text("カット"), "cut:", "x"),
+                                    (L10n.text("コピー"), "copy:", "c"), (L10n.text("ペースト"), "paste:", "v"), (L10n.text("すべてを選択"), "selectAll:", "a")] {
             edit.submenu?.addItem(withTitle: title, action: Selector(action), keyEquivalent: key)
         }
         menu.addItem(edit)

@@ -51,7 +51,7 @@ final class LidDisplaySleep {
         // This sleeps all attached displays, not just the built-in panel.
         let service = IORegistryEntryFromPath(kIOMainPortDefault, "IOService:/IOResources/IODisplayWrangler")
         guard service != 0 else {
-            throw AppFailure(code: .displaySleep, detail: "ディスプレイの制御サービスが見つかりません。")
+            throw AppFailure(code: .displaySleep, detail: L10n.text("ディスプレイの制御サービスが見つかりません。"))
         }
         defer { IOObjectRelease(service) }
         let result = IORegistryEntrySetCFProperty(service, "IORequestIdle" as CFString, kCFBooleanTrue)

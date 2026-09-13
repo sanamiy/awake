@@ -24,13 +24,13 @@ enum LoginStartup {
         switch status {
         case .enabled: return nil
         case .requiresApproval:
-            return "ログイン時の自動起動には、システム設定のログイン項目で\(AppIdentity.name)を許可してください。"
+            return L10n.text("ログイン時の自動起動には、システム設定のログイン項目で%@を許可してください。", AppIdentity.name)
         case .notRegistered:
-            return previousIssue ?? "ログイン時の自動起動が登録されていません。\(AppIdentity.name)を終了して開き直してください。"
+            return previousIssue ?? L10n.text("ログイン時の自動起動が登録されていません。%@を終了して開き直してください。", AppIdentity.name)
         case .notFound:
-            return previousIssue ?? "ログイン時の自動起動の登録を確認できません。\(AppIdentity.name)を終了して開き直してください。"
+            return previousIssue ?? L10n.text("ログイン時の自動起動の登録を確認できません。%@を終了して開き直してください。", AppIdentity.name)
         @unknown default:
-            return "ログイン時の自動起動の状態を確認できません。システム設定のログイン項目を確認してください。"
+            return L10n.text("ログイン時の自動起動の状態を確認できません。システム設定のログイン項目を確認してください。")
         }
     }
 }

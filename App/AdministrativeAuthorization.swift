@@ -4,7 +4,7 @@ enum AdministrativeAuthorization {
     static func command(for action: String, username: String) throws -> String {
         let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
         guard !username.isEmpty, username.unicodeScalars.allSatisfy(allowed.contains) else {
-            throw AppFailure(code: .invalidInput, detail: "安全に扱えないユーザー名です。")
+            throw AppFailure(code: .invalidInput, detail: L10n.text("安全に扱えないユーザー名です。"))
         }
         let target = "/etc/sudoers.d/lid-awake-\(username)"
         switch action {
@@ -14,7 +14,7 @@ enum AdministrativeAuthorization {
         case "--authorize-remove":
             return "/bin/rm -f '\(target)'"
         default:
-            throw AppFailure(code: .invalidInput, detail: "不明な認証操作です。")
+            throw AppFailure(code: .invalidInput, detail: L10n.text("不明な認証操作です。"))
         }
     }
 

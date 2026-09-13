@@ -122,7 +122,7 @@ final class AppModel: ObservableObject {
         // These deep links are provided by System Settings and may change with macOS.
         guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"),
               NSWorkspace.shared.open(url) else {
-            failure = AppFailure(code: .unexpected, detail: "設定画面を開けませんでした。システム設定 → プライバシーとセキュリティ → アクセシビリティを開いてください。")
+            failure = AppFailure(code: .unexpected, detail: L10n.text("設定画面を開けませんでした。システム設定 → プライバシーとセキュリティ → アクセシビリティを開いてください。"))
             return
         }
     }
@@ -229,7 +229,7 @@ final class AppModel: ObservableObject {
 
     private func saveUninstallStage(_ stage: UninstallProgress.Stage) throws {
         do { try uninstallProgress.save(stage) }
-        catch { throw AppFailure(code: .runtimeRemoval, detail: "削除の進行状況を保存できません。\n\(error.localizedDescription)") }
+        catch { throw AppFailure(code: .runtimeRemoval, detail: L10n.text("削除の進行状況を保存できません。\n%@", error.localizedDescription)) }
         uninstallStage = stage
         installationFailure = nil
         loginItemIssue = nil
