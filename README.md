@@ -1,76 +1,78 @@
-![Awake — Macを閉じても処理を続ける。ショートカットキーひとつで、画面ロックとスリープ防止。](design/slide/awake.png)
+![Awake — Keep working with your Mac closed. One shortcut to lock your screen and prevent sleep.](design/slide/awake.en.png)
 
 # Awake
 
-日本語 · [English](README.en.md)
+English · [日本語](README.ja.md)
 
-Awakeは、MacBookを閉じてもAIエージェントなどの処理を続けられるアプリです。
+Awake keeps AI agents and other tasks running on your MacBook with the lid closed.
 
-ショートカットひとつで、画面ロックとスリープ防止を開始。時間とバッテリー残量に応じて自動停止し、動かしっぱなしを防ぎます。
+One shortcut locks your screen and prevents sleep. A time limit and battery cutoff stop Awake Mode automatically, so your Mac doesn't stay awake indefinitely.
 
-## 対応環境
+## Requirements
 
-macOS 26以降、Apple Silicon搭載のMacBook AirおよびMacBook Proに対応しています。
+macOS 26 or later on a MacBook Air or MacBook Pro with Apple silicon.
 
-アプリの表示は日本語・英語に対応し、macOSの言語設定に合わせて切り替わります。
+The app supports English and Japanese and follows your macOS language preferences.
 
-## インストール
+## Installation
 
-1. [Releases](https://github.com/sanamiy/awake/releases)から `.pkg` ファイルをダウンロードして開き、案内に沿ってインストールします。
-2. 自動で起動したAwakeで「アクセシビリティ設定を開く」を押し、「システム設定 → プライバシーとセキュリティ → アクセシビリティ」でAwakeをオンにします（初回のみ・画面ロックに必要です）。
+1. Download the `.pkg` file from [Releases](https://github.com/sanamiy/awake/releases), open it, and follow the installer.
+2. When Awake opens, click “Open Accessibility Settings.” In System Settings → Privacy & Security → Accessibility, turn on Awake. This one-time permission is required to lock the screen.
 
-## 使い方
+The installer's instructions are currently in Japanese.
 
-1. AIエージェントなど、継続したい処理を開始します。
-2. **⌃⌘W（Control + Command + W）** を押すと、Awake Modeが始まり、画面ロックとスリープ防止が有効になります。
-3. 蓋を閉じて、処理を続けます。
-4. 戻ってきたら蓋を開き、ロックを解除するとAwake Modeが自動で終了します。
+## How to use
 
-## 蓋を閉じた後の動作
+1. Start the AI agent or other task you want to keep running.
+2. Press **⌃⌘W (Control + Command + W)** to start Awake Mode. Your screen locks and sleep prevention begins.
+3. Close the lid. Your tasks keep running.
+4. When you return, open the lid and unlock your screen. Awake Mode ends automatically.
 
-Awake Mode中に蓋を閉じたときの動作です。
+## What happens when you close the lid
 
-- **処理**：AIエージェントなどの処理はそのまま続きます。
-- **画面**：外部ディスプレイも含めて消灯します。
-- **音**：通常どおり鳴ります。
-- **ネットワーク**：通常どおりWi-Fiやテザリングを利用できます。ただし、利用環境によって接続が切れることがあります。
-- **停止**：ロックを解除すると、Awake Modeが終了します。蓋を開くだけでは終了しません。設定時間が経過したときや、バッテリー駆動中に残量が下限に達したときも終了します。電源接続中は、バッテリー残量が下限以下でも継続します。
+While Awake Mode is active:
 
-## 設定できること
+- **Tasks:** AI agents and other tasks keep running.
+- **Displays:** All displays turn off, including external displays.
+- **Audio:** Sound plays as usual.
+- **Network:** Wi-Fi and personal hotspots work as usual, though connections may drop depending on your setup.
+- **Stopping:** Unlocking your screen ends Awake Mode. Opening the lid alone does not. Awake Mode also ends when the time limit is reached or, while running on battery, the charge reaches your battery limit. When plugged in, it continues even below the battery limit.
 
-| 設定 | 内容 | 初期値 |
+## Settings
+
+| Setting | Description | Default |
 | --- | --- | --- |
-| スリープ防止の時間 | 動作を続ける時間の上限 | 120分 |
-| バッテリー下限 | バッテリー駆動中に停止する残量 | 30% |
-| 開始ショートカット | スリープ防止を開始するキー | ⌃⌘W |
+| Keep-awake duration | Maximum time to keep your Mac awake | 120 min |
+| Battery limit | Charge level at which to stop when running on battery | 30% |
+| Start shortcut | Keyboard shortcut to start Awake Mode | ⌃⌘W |
 
-## 設定画面を閉じた後
+## After closing the settings window
 
-ウインドウを閉じても、ショートカットは使えます。
+The shortcut keeps working after you close the window.
 
-設定を変更するときは、Spotlightや「アプリケーション」フォルダからAwakeを開いてください。アプリを完全に終了するには、Awakeの設定画面で **⌘Q** を押します。
+To change settings, open Awake from Spotlight or the Applications folder. To quit the app completely, press **⌘Q** with Awake's settings window active.
 
-Awakeはログイン時に自動起動しますが、スリープ防止はショートカットを押すまで開始しません。
+Awake launches at login, but sleep prevention does not start until you press the shortcut.
 
-## 更新・アンインストール
+## Updating and uninstalling
 
-更新する場合は、Awakeを⌘Qで終了してから、新しいPKGをインストールしてください。別のMacユーザーで使う場合も、そのユーザーでログインしてPKGを実行します。
+To update, quit Awake with ⌘Q, then install the new PKG. To use Awake with another macOS user account, sign in to that account and run the PKG installer there too.
 
-削除する場合は、設定画面右下の「アンインストール」を使ってください。設定の削除後、「Finderで表示して終了」を押し、FinderでAwakeをゴミ箱へ移してください。時間やショートカットの設定値は、再インストールに備えて残ります。
+To uninstall, click “Uninstall” at the bottom right of the settings window. After the settings are removed, click “Show in Finder and Quit,” then move Awake to the Trash in Finder. Your duration, battery limit, and shortcut preferences are kept for a future reinstall.
 
-## 困ったとき
+## Troubleshooting
 
-- **ショートカットを押しても始まらない**：Awakeを開き、表示されている案内を確認してください。アクセシビリティを許可した後は、もう一度ショートカットを押します。
-- **インストールの修復を案内された**：Awakeを終了し、PKGを再インストールしてください。
-- **ほかのスリープ防止アプリを使っている**：そのアプリでスリープ防止を解除してから、Awakeを開始してください。
-- **Wi-Fiやテザリングが切れた**：接続元のルーターやスマートフォンも確認してください。Awakeは通信接続の維持を保証しません。
+- **The shortcut does nothing:** Open Awake and follow the instructions shown. After granting Accessibility permission, press the shortcut again.
+- **Awake asks you to repair the installation:** Quit Awake and reinstall the PKG.
+- **You use another sleep-prevention app:** Stop sleep prevention in that app before starting Awake.
+- **Wi-Fi or your hotspot disconnects:** Check your router or phone too. Awake cannot guarantee that a network connection will stay active.
 
-### 解除できない場合
+### If sleep prevention won't stop
 
-Awakeに表示される「停止を再試行」を押してください。必要に応じて管理者認証が求められます。
+Click “Retry Stop” in Awake. You may be asked to authorize the operation as an administrator.
 
-アプリが開かない、停止や終了ができない場合は、[トラブルシューティング](docs/TROUBLESHOOTING.md)の復旧手順を確認してください。
+If the app will not open, stop, or quit, see the recovery steps in the [troubleshooting guide (Japanese)](docs/TROUBLESHOOTING.md).
 
 ---
 
-[開発・仕様ドキュメント](docs/README.md) · [ライセンス（MIT）](LICENSE)
+[Development and specifications (Japanese)](docs/README.md) · [MIT License](LICENSE)
