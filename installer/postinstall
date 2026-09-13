@@ -1,0 +1,27 @@
+#!/bin/zsh -f
+set -euo pipefail
+readonly PKG_SCRIPT_DIR="${0:A:h}"
+source "$PKG_SCRIPT_DIR/pkg-common.zsh"
+
+postinstall_main() {
+  pkg_step LA6001 pkg_require_root_and_volume "${3:-}" || return 1
+  pkg_step LA6002 pkg_resolve_user || return 1
+  pkg_step LA6002 pkg_check_pinned_user "$PKG_SCRIPT_DIR/install-target" || return 1
+  pkg_step LA1002 pkg_require_app_stopped || return 1
+  pkg_step LA6003 pkg_validate_app || { pkg_fail 'インストールしたアプリの署名を確認できません。'; return 1; }
+  pkg_step LA6004 pkg_install_rule || return 1
+  if ! pkg_step LA6005 pkg_user_setup; then
+    # Keep the permission needed to restore a prior session. A failed install
+    # must not remove recovery permissions; rerunning the installer is safe.
+    pkg_fail '初期設定を完了できませんでした。アプリと復旧用の権限を保持しています。インストーラーを再実行してください。'
+    return 1
+  fi
+  print -- "${LA_APP_NAME}のインストールと初期設定が完了しました。"
+  if ! pkg_step LA6007 pkg_open_settings "$PKG_SCRIPT_DIR/install-target"; then
+    # Installation already succeeded. A GUI launch failure must not report a
+    # failed install or undo the installed recovery runtime.
+    print -u2 -- "設定画面を開けませんでした。「アプリケーション」フォルダから${LA_APP_NAME}を開いてください。"
+  fi
+}
+
+if [[ "$ZSH_EVAL_CONTEXT" == toplevel ]]; then postinstall_main "$@"; fi

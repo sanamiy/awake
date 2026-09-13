@@ -1,0 +1,397 @@
+#!/bin/zsh -f
+
+# Awake: temporarily keep a Mac notebook awake with its lid closed.
+# Privileged pmset calls use the two permissions installed by the PKG.
+
+set -u
+
+readonly PROGRAM_NAME="@AWAKE_APP_NAME@"
+readonly PROGRAM_BUNDLE_ID="@AWAKE_BUNDLE_ID@"
+# This source is rendered into a self-contained CLI during the app build.
+[[ "$PROGRAM_NAME" != '@'* ]] || { print -u2 'ビルド済みアプリに同梱されたCLIを使用してください。'; exit 78; }
+readonly DEFAULT_AUTHORIZER="/Applications/${PROGRAM_NAME}.app/Contents/MacOS/${PROGRAM_NAME}"
+readonly STATE_DIR="${HOME}/Library/Application Support/LidAwake"
+readonly TOKEN_FILE="${STATE_DIR}/session-token"
+readonly PID_FILE="${STATE_DIR}/monitor-pid"
+readonly META_FILE="${STATE_DIR}/session.env"
+readonly LOG_FILE="${STATE_DIR}/monitor.log"
+readonly LOCK_FILE="${STATE_DIR}/operation.lock"
+typeset -g LOCK_FD=""
+readonly PMSET="/usr/bin/pmset"
+readonly IOREG="/usr/sbin/ioreg"
+readonly SUDO="/usr/bin/sudo"
+readonly OSASCRIPT="/usr/bin/osascript"
+readonly NOHUP="/usr/bin/nohup"
+readonly SCRIPT_PATH="${0:A}"
+
+say() {
+  print -r -- "$*"
+}
+
+fail() {
+  local code="${2:-70}"
+  print -u2 -r -- "${PROGRAM_NAME} [${code}]: $1"
+  exit "$code"
+}
+
+notify() {
+  local message="$1"
+  [[ "${LID_AWAKE_NO_NOTIFY:-0}" != "1" ]] || return 0
+  "$OSASCRIPT" - "$message" "$PROGRAM_NAME" >/dev/null 2>&1 <<'APPLESCRIPT' || true
+on run argv
+  display notification (item 1 of argv) with title (item 2 of argv)
+end run
+APPLESCRIPT
+}
+
+ensure_state_dir() {
+  /bin/mkdir -p "$STATE_DIR" && /bin/chmod 700 "$STATE_DIR"
+}
+
+acquire_lock() {
+  ensure_state_dir || return 1
+  zmodload zsh/system || return 1
+  (umask 077; : >> "$LOCK_FILE") || return 1
+  zsystem flock -t 10 -i 0.1 -f LOCK_FD "$LOCK_FILE"
+}
+
+release_lock() {
+  if [[ -n "$LOCK_FD" ]]; then
+    zsystem flock -u "$LOCK_FD"
+    LOCK_FD=""
+  fi
+}
+
+is_uint() {
+  [[ "$1" == <-> ]]
+}
+
+sleep_state() {
+  local value
+  # macOS 26 accepts `pmset disablesleep` but no longer shows it in
+  # `pmset -g custom`; IOPMrootDomain remains the authoritative live value.
+  value=$("$IOREG" -r -n IOPMrootDomain -d 1 | /usr/bin/awk '$1 == "\"SleepDisabled\"" { print $3; exit }')
+  [[ "$value" == "Yes" || "$value" == "No" ]] || return 1
+  print -r -- "$value"
+}
+
+restore_sleep() {
+  local value
+  # External/manual recovery may already have restored sleep despite broken sudoers.
+  value=$(sleep_state) || return 81
+  [[ "$value" == No ]] && return 0
+  session_owned_by_us || return 85
+  if ! set_sleep_disabled 0; then
+    [[ "${1:-0}" == 1 ]] || return 80
+    local authorizer="${LID_AWAKE_AUTHORIZER:-${DEFAULT_AUTHORIZER}}"
+    [[ -x "$authorizer" ]] || return 127
+    "$authorizer" --authorize-restore || return $?
+  fi
+  value=$(sleep_state) || return 81
+  [[ "$value" == "No" ]] || return 80
+}
+
+set_sleep_disabled() {
+  local value="$1"
+  "$SUDO" -n "$PMSET" -a disablesleep "$value"
+}
+
+sudo_rule_available() {
+  "$SUDO" -n -l "$PMSET" -a disablesleep 0 >/dev/null 2>&1 &&
+    "$SUDO" -n -l "$PMSET" -a disablesleep 1 >/dev/null 2>&1
+}
+
+current_token() {
+  [[ -r "$TOKEN_FILE" ]] && </dev/null /bin/cat "$TOKEN_FILE"
+}
+
+current_monitor_pid() {
+  [[ -r "$PID_FILE" ]] && </dev/null /bin/cat "$PID_FILE"
+}
+
+monitor_is_running() {
+  local pid
+  pid=$(current_monitor_pid)
+  is_uint "$pid" && /bin/kill -0 "$pid" 2>/dev/null
+}
+
+battery_source() {
+  "$PMSET" -g batt | /usr/bin/sed -n "1s/^Now drawing from '\(.*\)'$/\1/p"
+}
+
+battery_percent() {
+  "$PMSET" -g batt | /usr/bin/sed -n 's/.*[[:space:]]\([0-9][0-9]*\)%;.*/\1/p' | /usr/bin/head -n 1
+}
+
+session_owned_by_us() {
+  [[ -s "$TOKEN_FILE" ]]
+}
+
+write_metadata() {
+  local deadline="$1"
+  local minimum="$2"
+  {
+    print -r -- "deadline=${deadline}"
+    print -r -- "minimum_battery=${minimum}"
+  } >| "$META_FILE"
+  /bin/chmod 600 "$META_FILE" "$TOKEN_FILE"
+}
+
+clear_session_state() {
+  /bin/rm -f "$TOKEN_FILE" "$PID_FILE" "$META_FILE"
+}
+
+read_metadata_value() {
+  local key="$1"
+  [[ -r "$META_FILE" ]] || return 1
+  /usr/bin/awk -F= -v wanted="$key" '$1 == wanted { print $2; exit }' "$META_FILE"
+}
+
+start_session() {
+  local minutes="$1"
+  local minimum="$2"
+  local percent source token deadline monitor_pid power
+
+  is_uint "$minutes" && (( minutes >= 1 && minutes <= 1440 )) ||
+    fail "時間は1〜1440分で指定してください。" 64
+  is_uint "$minimum" && (( minimum >= 5 && minimum <= 95 )) ||
+    fail "最低バッテリー残量は5〜95%で指定してください。" 64
+
+  # The single internal start operation refreshes our session. Validate first
+  # so an invalid request cannot stop a running session. The app owns locking.
+  stop_session 1 || return $?
+  ensure_state_dir
+  power=$(sleep_state) || fail "スリープ設定を読み取れないため開始しません。" 81
+
+  if [[ "$power" == Yes ]] && ! session_owned_by_us; then
+    fail "別のツールがスリープを無効化しています。競合を避けるため開始しません。" 85
+  fi
+
+  if ! sudo_rule_available; then
+    fail "電源制御の初期設定を確認できません。停止に失敗する場合はアプリの「停止を再試行」を実行してから終了し、利用するユーザーでログインした状態で${PROGRAM_NAME}のPKGインストーラーを再実行してください。" 78
+  fi
+
+  source=$(battery_source)
+  percent=$(battery_percent)
+  if [[ "$source" == "Battery Power" ]] && is_uint "$percent" && (( percent <= minimum )); then
+    fail "バッテリー残量が${percent}%のため開始しません（下限${minimum}%）。" 86
+  fi
+
+  token="$(/usr/bin/uuidgen)"
+  deadline=$(( $(/bin/date +%s) + minutes * 60 ))
+  print -r -- "$token" >| "$TOKEN_FILE"
+  write_metadata "$deadline" "$minimum"
+
+  if ! set_sleep_disabled 1; then
+    if restore_sleep; then
+      clear_session_state
+    fi
+    fail "スリープ無効化に失敗しました。" 87
+  fi
+
+  "$NOHUP" /bin/zsh -f -- "$SCRIPT_PATH" _monitor "$token" "$deadline" "$minimum" >>"$LOG_FILE" 2>&1 </dev/null &
+  monitor_pid=$!
+  print -r -- "$monitor_pid" >| "$PID_FILE"
+  /bin/chmod 600 "$PID_FILE"
+
+  /bin/sleep 0.2
+  if ! /bin/kill -0 "$monitor_pid" 2>/dev/null; then
+    if restore_sleep; then
+      clear_session_state
+    fi
+    fail "安全監視プロセスを開始できませんでした。" 87
+  fi
+
+  # GUI permission prompts must not block the monitor's automatic cutoff.
+  release_lock
+  notify "${minutes}分間、蓋を閉じても動作を継続します。残量${minimum}%で解除します。"
+  say "有効にしました: ${minutes}分 / バッテリー下限 ${minimum}%"
+  say "解除: lid-awake stop"
+
+  return 0
+}
+
+stop_session() {
+  local quiet="${1:-0}"
+  local allow_authorization="${2:-0}"
+
+  ensure_state_dir
+  if restore_sleep "$allow_authorization"; then
+    :
+  else
+    local code=$?
+    print -u2 -- "スリープ解除を確認できませんでした（終了値: $code）。設定と復旧情報は保持しています。"
+    return "$code"
+  fi
+
+  if ! session_owned_by_us; then
+    [[ "$quiet" == "1" ]] || say "通常のスリープ動作を確認しました。${PROGRAM_NAME}のセッションはありません。"
+    return 0
+  fi
+
+  # The old monitor exits on its next token check. Never signal a possibly reused PID.
+  clear_session_state
+
+  if [[ "$quiet" != "1" ]]; then
+    notify "通常のスリープ動作に戻しました。"
+    say "解除しました。通常のスリープ動作に戻っています。"
+  fi
+  return 0
+}
+
+show_status() {
+  local deadline minimum remaining percent source power
+  power=$(sleep_state) || {
+    say "注意: スリープ設定を読み取れません。状態は不明です。"
+    return 2
+  }
+  if [[ "$power" == Yes ]] && session_owned_by_us && monitor_is_running; then
+    deadline=$(read_metadata_value deadline)
+    minimum=$(read_metadata_value minimum_battery)
+    remaining=$(( (deadline - $(/bin/date +%s) + 59) / 60 ))
+    (( remaining < 0 )) && remaining=0
+    source=$(battery_source)
+    percent=$(battery_percent)
+    say "有効: 残り約${remaining}分 / バッテリー ${percent}% (${source}) / 下限 ${minimum}%"
+    return 0
+  fi
+
+  if [[ "$power" == Yes ]]; then
+    say "注意: スリープは無効ですが、${PROGRAM_NAME}の監視対象ではありません。"
+    return 2
+  fi
+
+  say "無効: 通常のスリープ動作です。"
+}
+
+monitor_session() {
+  local token="$1"
+  local deadline="$2"
+  local minimum="$3"
+  local now source percent stored power stop_requested=0
+
+  typeset -g MONITOR_TOKEN="$token"
+  typeset -g MONITOR_REASON="安全監視プロセスが終了"
+
+  monitor_cleanup() {
+    local stored
+    acquire_lock || return 1
+    stored=$(current_token)
+    if [[ "$stored" == "$MONITOR_TOKEN" ]]; then
+      if restore_sleep; then
+        clear_session_state
+        notify "${MONITOR_REASON}。通常のスリープ動作に戻しました。"
+      else
+        notify "スリープの解除に失敗しました。復旧情報を保持しています。アプリの「停止を再試行」を実行してください。"
+        release_lock
+        return 1
+      fi
+    fi
+    release_lock
+  }
+  trap monitor_cleanup EXIT
+  trap 'exit 0' INT TERM HUP
+
+  while true; do
+    stored=$(current_token)
+    [[ "$stored" == "$token" ]] || exit 0
+
+    if (( ! stop_requested )); then
+      now=$(/bin/date +%s)
+      source=$(battery_source)
+      percent=$(battery_percent)
+      if (( now >= deadline )); then
+        MONITOR_REASON="設定時間が終了"
+        stop_requested=1
+      elif [[ "$source" == "Battery Power" ]] && is_uint "$percent" && (( percent <= minimum )); then
+        MONITOR_REASON="バッテリー残量が${percent}%に到達"
+        stop_requested=1
+      else
+        power=$(sleep_state) || power=unknown
+        case "$power" in
+          No) MONITOR_REASON="電源設定が変更されたため終了"; stop_requested=1 ;;
+          unknown) MONITOR_REASON="電源設定を確認できなくなったため終了"; stop_requested=1 ;;
+        esac
+      fi
+    fi
+
+    # Latch a cutoff through transient read/restore failures. Never abandon our
+    # session just because its live state is temporarily unreadable.
+    if (( stop_requested )) && monitor_cleanup; then
+      trap - EXIT
+      exit 0
+    fi
+
+    /bin/sleep 15
+  done
+}
+
+usage() {
+  cat <<'USAGE'
+使い方:
+  lid-awake stop
+  lid-awake recover
+  lid-awake status
+
+開始はアプリのショートカットを使用してください。
+recoverは自分のセッションだけを復旧し、必要な場合に管理者認証を求めます。
+USAGE
+}
+
+main() {
+  local command="${1:-status}"
+  shift || true
+
+  local minutes minimum
+  case "$command" in
+    _monitor)
+      [[ $# -eq 3 ]] || fail "監視引数が不正です。" 64
+      monitor_session "$1" "$2" "$3"
+      return
+      ;;
+    _start)
+      # Internal app protocol: both values are mandatory, in this exact order.
+      [[ $# -eq 4 && "$1" == --minutes && "$3" == --min-battery ]] ||
+        fail "開始には --minutes <分> --min-battery <残量> が必要です。" 64
+      minutes="$2"
+      minimum="$4"
+      ;;
+    stop|recover|status|_recover|-h|--help)
+      (( $# == 0 )) || fail "${command} に引数は指定できません。" 64
+      if [[ "$command" == -h || "$command" == --help ]]; then usage; return 0; fi
+      ;;
+    *)
+      usage
+      return 64
+      ;;
+  esac
+
+  acquire_lock || fail "別の操作が実行中です。後でもう一度実行してください。" 73
+  {
+  case "$command" in
+    _start)
+      start_session "$minutes" "$minimum"
+      ;;
+    stop)
+      stop_session
+      ;;
+    recover)
+      stop_session 0 1
+      ;;
+    _recover)
+      stop_session 1
+      ;;
+    status)
+      show_status
+      ;;
+  esac
+  } always {
+    release_lock
+  }
+}
+
+# setup-runtime.sh and uninstall.sh source this file and hold its operation lock
+# through installation/removal. Run command dispatch only when executed directly.
+if [[ "$ZSH_EVAL_CONTEXT" == "toplevel" ]]; then
+  main "$@"
+fi

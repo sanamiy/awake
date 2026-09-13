@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="halo">
+      <stop stop-color="#D9FAFF" stop-opacity="0.85"/>
+      <stop offset="0.3" stop-color="#8EEAFF" stop-opacity="0.58"/>
+      <stop offset="0.65" stop-color="#65CCFF" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#65CCFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="soft-core">
+      <stop stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="0.35" stop-color="#E9FCFF" stop-opacity="0.8"/>
+      <stop offset="0.7" stop-color="#B1EEFF" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#8BDFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="core" x1="116" y1="655" x2="908" y2="655" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7AD7FF" stop-opacity="0"/>
+      <stop offset="0.16" stop-color="#A6E9FF" stop-opacity="0.25"/>
+      <stop offset="0.35" stop-color="#E9FBFF" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#FFFFFF"/>
+      <stop offset="0.55" stop-color="#FFFFFF"/>
+      <stop offset="0.65" stop-color="#E9FBFF" stop-opacity="0.85"/>
+      <stop offset="0.84" stop-color="#A6E9FF" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#7AD7FF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="512" cy="655" rx="400" ry="36" fill="url(#halo)"/>
+  <ellipse cx="512" cy="655" rx="396" ry="13" fill="url(#soft-core)"/>
+  <rect x="116" y="651" width="792" height="8" rx="4" fill="url(#core)"/>
+</svg>

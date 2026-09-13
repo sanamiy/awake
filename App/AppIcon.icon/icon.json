@@ -1,0 +1,86 @@
+{
+  "fill": {
+    "linear-gradient": [
+      "srgb:0.40000,0.80392,0.97647,1.00000",
+      "srgb:0.02745,0.52941,0.94902,1.00000"
+    ]
+  },
+  "groups": [
+    {
+      "name": "04 — Center glow",
+      "layers": [
+        {
+          "glass": false,
+          "image-name": "04-center-glow.svg",
+          "name": "White center fading to blue"
+        }
+      ],
+      "shadow": {
+        "kind": "none",
+        "opacity": 0
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0.5
+      }
+    },
+    {
+      "layers": [
+        {
+          "glass": true,
+          "image-name": "02-lid.svg",
+          "name": "Silver lid"
+        }
+      ],
+      "name": "02 — Closed lid",
+      "shadow": {
+        "kind": "none",
+        "opacity": 0.18
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.5
+      }
+    },
+    {
+      "layers": [
+        {
+          "glass": true,
+          "image-name": "03-base.svg",
+          "name": "Notched front edge"
+        }
+      ],
+      "name": "03 — Chassis",
+      "shadow": {
+        "kind": "none",
+        "opacity": 0.18
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.5
+      }
+    },
+    {
+      "layers": [
+        {
+          "glass": false,
+          "hidden": false,
+          "image-name": "01-awake.svg",
+          "name": "White sparkle"
+        }
+      ],
+      "name": "01 — Sparkle",
+      "shadow": {
+        "kind": "none",
+        "opacity": 0.18
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0.5
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared"
+  }
+}

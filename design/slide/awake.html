@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Macを閉じても処理を続ける。Awakeなら、ショートカットキーひとつで画面ロックとスリープ防止。">
+  <title>Awake — Macを閉じても処理を続ける。</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      min-height: 100svh;
+      display: grid;
+      place-items: center;
+      background: #ededf0;
+      color: #1d1d1f;
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+      font-weight: 600;
+      -webkit-font-smoothing: antialiased;
+    }
+    .slide {
+      width: min(100vw, calc(100svh * 16 / 9));
+      aspect-ratio: 16 / 9;
+      position: relative;
+      overflow: hidden;
+      container-type: inline-size;
+      background: #fbfbfd;
+    }
+    .copy {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      left: 5.8cqw;
+      width: 41cqw;
+      display: flex;
+      flex-direction: column;
+      font-size: 4cqw;
+      line-height: 1.35;
+      letter-spacing: -.045em;
+      text-align: left;
+      z-index: 1;
+    }
+    .brand {
+      position: absolute;
+      z-index: 1;
+      top: 5.8cqw;
+      left: 5.8cqw;
+      width: 41cqw;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 1cqw;
+      font-size: 2.7cqw;
+      font-weight: 500;
+    }
+    .brand-icon {
+      width: 4.4cqw;
+      height: 4.4cqw;
+      object-fit: contain;
+    }
+    h1 {
+      margin: 0;
+      font-size: 6cqw;
+      font-weight: inherit;
+      line-height: 1.25;
+      letter-spacing: inherit;
+    }
+    h1 span { display: block; font-weight: 700; }
+    .art {
+      position: absolute;
+      right: -51cqw;
+      top: 38%;
+      width: 120cqw;
+      height: auto;
+      object-fit: contain;
+      opacity: 1;
+      transform: translateY(-50%);
+    }
+    .feature {
+      margin: 3cqw 0 0;
+      font-size: 2.6cqw;
+      line-height: inherit;
+      font-weight: inherit;
+      letter-spacing: inherit;
+    }
+    .feature-intro {
+      display: block;
+      color: #6e6e73;
+    }
+    .feature strong {
+      display: flex;
+      align-items: center;
+      gap: .3em;
+      margin-top: 1cqw;
+      font-weight: inherit;
+    }
+    .feature-label {
+      display: inline-flex;
+      align-items: center;
+      gap: .3em;
+      color: #0071e3;
+      white-space: nowrap;
+    }
+    .feature-icon {
+      width: .8em;
+      height: .8em;
+      flex: none;
+    }
+    .feature-label.sleep { color: #f58220; }
+    .feature-connector { color: #6e6e73; }
+    @media print {
+      @page { size: 1600px 900px; margin: 0; }
+      body { display: block; min-height: 0; background: white; }
+      .slide { width: 1600px; height: 900px; }
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <main class="slide" aria-labelledby="headline">
+    <p class="brand"><img class="brand-icon" src="../icon/icon-1024.png" alt="" width="1024" height="1024">Awake</p>
+    <section class="copy">
+      <h1 id="headline"><span>Macを閉じても</span><span>処理を続ける</span></h1>
+      <!-- Local Lucide icons. See THIRD_PARTY_NOTICES.md for source and licenses. -->
+      <p class="feature"><span class="feature-intro">ショートカットキーひとつで、</span><strong>
+        <span class="feature-label">
+          <img class="feature-icon" src="icons/lock.svg" alt="" aria-hidden="true" width="24" height="24">画面ロック
+        </span>
+        <span class="feature-connector">と</span>
+        <span class="feature-label sleep">
+          <img class="feature-icon" src="icons/sun.svg" alt="" aria-hidden="true" width="24" height="24">スリープ防止
+        </span>
+      </strong></p>
+    </section>
+    <!-- Generated product illustration, not an official Apple product photograph. -->
+    <img class="art" src="macbook.png" alt="画面を半ば閉じて浮くMacBook。ロック画面の反射とControl・Command・Wキーが淡く光るイメージ" width="1536" height="1024">
+  </main>
+</body>
+</html>

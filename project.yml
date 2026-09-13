@@ -1,0 +1,57 @@
+name: LidAwake
+configFiles:
+  Debug: config/Product.xcconfig
+  Release: config/Product.xcconfig
+settings:
+  base:
+    SWIFT_VERSION: '5.0'
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: '-'
+    ENABLE_HARDENED_RUNTIME: YES
+    GENERATE_INFOPLIST_FILE: NO
+targets:
+  LidAwake:
+    type: application
+    platform: macOS
+    sources:
+      - path: App
+        excludes: [Info.plist]
+    settings:
+      base:
+        PRODUCT_NAME: $(AWAKE_APP_NAME)
+        PRODUCT_MODULE_NAME: LidAwake
+        PRODUCT_BUNDLE_IDENTIFIER: $(AWAKE_BUNDLE_ID)
+        INFOPLIST_FILE: App/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    postBuildScripts:
+      - name: Embed runtime
+        basedOnDependencyAnalysis: false
+        script: |
+          set -eu
+          runtime="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/runtime"
+          python3 "$SRCROOT/scripts/configure.py" --runtime-dir "$runtime"
+  LidAwakeTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests/App
+      - path: App
+        excludes: [AppEntry.swift, Info.plist, AppIcon.icon]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(AWAKE_BUNDLE_ID).tests
+        INFOPLIST_KEY_CFBundleDisplayName: $(AWAKE_APP_NAME)
+        INFOPLIST_KEY_AppProductBundleIdentifier: $(AWAKE_BUNDLE_ID)
+        # XcodeGen discovers App/Info.plist even when excluded from sources.
+        # Tests must not inherit the application's NSPrincipalClass/LSUIElement.
+        INFOPLIST_FILE: ''
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_IDENTITY: '-'
+schemes:
+  LidAwake:
+    build:
+      targets:
+        LidAwake: all
+        LidAwakeTests: [test]
+    test:
+      targets: [LidAwakeTests]

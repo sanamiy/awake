@@ -1,0 +1,10 @@
+{
+  "name": "Awake — Sky Awake",
+  "created": "2026-09-12",
+  "editor": "Apple Icon Composer",
+  "document": "../../App/AppIcon.icon",
+  "render": "zsh scripts/render-icon.sh",
+  "provenance": "Original editable vector artwork for Awake, revised from the selected visual concept. Composition and effects saved in Icon Composer. No third-party artwork.",
+  "license": "MIT",
+  "updated": "2026-09-13"
+}

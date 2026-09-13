@@ -1,0 +1,9 @@
+// Product and distribution settings shared by Xcode and scripts/configure.py.
+AWAKE_APP_NAME = Awake
+AWAKE_BUNDLE_ID = dev.lid-awake.app
+AWAKE_PACKAGE_ID = dev.lid-awake.installer
+AWAKE_TEAM_ID = PS7X3TGCZT
+AWAKE_SIGNING_NAME = Synome Inc.
+AWAKE_NOTARY_PROFILE = lid-awake-synome-notary
+MACOSX_DEPLOYMENT_TARGET = 26.0
+ARCHS = arm64

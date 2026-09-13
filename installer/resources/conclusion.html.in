@@ -1,0 +1,6 @@
+<!doctype html><html lang="ja"><meta charset="utf-8">
+<style>body{font:14px -apple-system,sans-serif;color:#222;line-height:1.6}h1{font-size:22px}</style>
+<h1>準備ができました</h1>
+<p>@AWAKE_APP_NAME@の設定画面が自動で開きます。表示されない場合は「アプリケーション」フォルダから@AWAKE_APP_NAME@を開いてください。</p>
+<p>初回はアプリの「画面ロックの許可」から「アクセシビリティ設定を開く」を押し、@AWAKE_APP_NAME@を許可してください。許可後に開始ショートカットを押してください。</p>
+</html>

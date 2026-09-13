@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+  <title>@AWAKE_APP_NAME@</title>
+  <welcome file="welcome.html" mime-type="text/html"/>
+  <conclusion file="conclusion.html" mime-type="text/html"/>
+  <options customize="never" require-scripts="true" hostArchitectures="@INSTALLER_ARCHS@"/>
+  <domains enable_anywhere="false" enable_currentUserHome="false" enable_localSystem="true"/>
+  <allowed-os-versions><os-version min="@MACOSX_DEPLOYMENT_TARGET@"/></allowed-os-versions>
+  <choices-outline><line choice="main"/></choices-outline>
+  <choice id="main" visible="false" title="@AWAKE_APP_NAME@">
+    <pkg-ref id="@AWAKE_PACKAGE_ID@"/>
+  </choice>
+  <pkg-ref id="@AWAKE_PACKAGE_ID@" auth="Root">component.pkg</pkg-ref>
+  <!-- Let Installer explain and request a normal quit before running scripts.
+       A preinstall failure alone is shown as a generic installation error. -->
+  <pkg-ref id="@AWAKE_PACKAGE_ID@">
+    <must-close><app id="@AWAKE_BUNDLE_ID@"/></must-close>
+  </pkg-ref>
+</installer-gui-script>

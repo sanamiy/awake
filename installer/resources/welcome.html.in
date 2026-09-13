@@ -1,0 +1,7 @@
+<!doctype html><html lang="ja"><meta charset="utf-8">
+<style>body{font:14px -apple-system,sans-serif;color:#222;line-height:1.6}h1{font-size:22px}</style>
+<h1>@AWAKE_APP_NAME@をインストール</h1>
+<p>macOS @MACOSX_DEPLOYMENT_TARGET@以降（@ARCHS@）に対応しています。</p>
+<p>アプリの配置と、電源制御・復旧機能の初期設定をまとめて行います。管理者認証が必要です。</p>
+<p>@AWAKE_APP_NAME@が起動中の場合は、インストーラーの案内に従って終了してください。ウインドウを閉じるだけでは終了しません。電源制御は現在ログイン中のユーザーに設定されます。</p>
+</html>
