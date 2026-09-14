@@ -103,7 +103,11 @@ final class ScreenLockSessionTests: XCTestCase {
         var restored = 0
         value.requestLock = { throw AppFailure(code: .unexpected, detail: "permission denied") }
         do {
-            try await value.start(enable: {}, restore: { restored += 1 })
+            try await value.start(enable: {}, restore: {
+                XCTAssertEqual(value.phase, .needsStop)
+                restored += 1
+                value.didStop()
+            })
             XCTFail("Lock failure must reject start")
         } catch { XCTAssertEqual((error as? AppFailure)?.detail, "permission denied") }
         XCTAssertEqual(restored, 1)
@@ -118,7 +122,7 @@ final class ScreenLockSessionTests: XCTestCase {
             value.readState = { state }
             value.pause = { waits += 1 }
             do {
-                try await value.start(enable: {}, restore: { restored += 1 })
+                try await value.start(enable: {}, restore: { restored += 1; value.didStop() })
                 XCTFail("A successful key event is not proof of screen lock")
             } catch { }
             XCTAssertEqual(waits, 24)
@@ -147,7 +151,8 @@ final class ScreenLockSessionTests: XCTestCase {
         var restored = false
         value.requestLock = { XCTFail("Do not lock after runtime start failed") }
         do {
-            try await value.start(enable: { throw AppFailure(code: .unexpected, detail: "start failed") }, restore: { restored = true })
+            try await value.start(enable: { throw AppFailure(code: .unexpected, detail: "start failed") },
+                                  restore: { restored = true; value.didStop() })
             XCTFail("Expected failure")
         } catch { }
         XCTAssertTrue(restored)
@@ -167,7 +172,7 @@ final class ScreenLockSessionTests: XCTestCase {
         value.pause = { throw CancellationError() }
         var restored = false
         do {
-            try await value.start(enable: {}, restore: { restored = true })
+            try await value.start(enable: {}, restore: { restored = true; value.didStop() })
             XCTFail("Expected cancellation")
         } catch { XCTAssertTrue(error is CancellationError) }
         XCTAssertTrue(restored)

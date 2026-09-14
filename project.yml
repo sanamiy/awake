@@ -25,6 +25,13 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: $(AWAKE_BUNDLE_ID)
         INFOPLIST_FILE: App/Info.plist
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    dependencies:
+      - target: AwakeRecovery
+        embed: true
+        link: false
+        copy:
+          destination: wrapper
+          subpath: Contents/Helpers
     postBuildScripts:
       - name: Embed runtime
         basedOnDependencyAnalysis: false
@@ -32,6 +39,18 @@ targets:
           set -eu
           runtime="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/runtime"
           python3 "$SRCROOT/scripts/configure.py" --runtime-dir "$runtime"
+  AwakeRecovery:
+    type: tool
+    platform: macOS
+    sources: [Recovery]
+    settings:
+      base:
+        PRODUCT_NAME: AwakeRecovery
+        PRODUCT_BUNDLE_IDENTIFIER: $(AWAKE_BUNDLE_ID).recovery
+        CREATE_INFOPLIST_SECTION_IN_BINARY: YES
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: $(AWAKE_APP_NAME)
+        INFOPLIST_KEY_CFBundleName: $(AWAKE_APP_NAME)
   LidAwakeTests:
     type: bundle.unit-test
     platform: macOS

@@ -31,4 +31,5 @@ if [[ "$task_suite" != shell ]]; then
   xcodegen generate
   /usr/bin/xcodebuild -project LidAwake.xcodeproj -scheme LidAwake -configuration Debug \
     -destination 'platform=macOS' -derivedDataPath .build-tests test
+  /bin/zsh -f Tests/Integration/test-termination.zsh
 fi

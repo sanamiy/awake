@@ -23,7 +23,7 @@ enum FailureCode: String {
         case .batteryLow: return L10n.text("バッテリー残量が設定した下限以下のため開始しません。")
         case .powerStart: return L10n.text("スリープ防止を開始できませんでした。")
         case .runtimeRemoval: return L10n.text("電源制御の設定を削除できませんでした。アンインストールを再試行してください。")
-        case .loginRemoval: return L10n.text("電源制御の設定は削除しましたが、ログイン時の起動を解除できませんでした。アンインストールを再試行してください。")
+        case .loginRemoval: return L10n.text("ログイン時の自動起動を解除できませんでした。アンインストールを再試行してください。")
         case .uninstallPending: return L10n.text("アンインストール中のため開始できません。画面の案内に従って削除を完了してください。")
         case .invalidTarget: return L10n.text("アンインストール対象の%@アプリを確認できませんでした。", AppIdentity.name)
         case .shortcut: return L10n.text("ショートカットを登録できませんでした。別のキーを選んでください。")

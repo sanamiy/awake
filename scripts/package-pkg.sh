@@ -8,6 +8,8 @@ readonly SOURCE_APP="$PROJECT_DIR/dist/$LA_APP_NAME.app"
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$SOURCE_APP/Contents/Info.plist")" == "$LA_BUNDLE_ID" ]] || exit 1
 /usr/bin/codesign --verify --deep --strict \
   -R "$LA_SIGNING_REQUIREMENT" "$SOURCE_APP"
+/usr/bin/codesign --verify --strict -R "$LA_RECOVERY_SIGNING_REQUIREMENT" \
+  "$SOURCE_APP/Contents/Helpers/AwakeRecovery"
 version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$SOURCE_APP/Contents/Info.plist")
 [[ -n "$version" && "$version" != *[^0-9A-Za-z._-]* ]] || exit 1
 task_work=$(/usr/bin/mktemp -d "$PROJECT_DIR/dist/.pkg-build.XXXXXX")

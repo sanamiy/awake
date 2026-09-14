@@ -6,12 +6,15 @@ readonly task_root=$(/usr/bin/mktemp -d)
 trap '/bin/rm -rf "$task_root"' EXIT
 export TEST_SETUP_ROOT="$task_root"
 export TEST_SETUP_HOME="$task_root/user & space"
-/bin/mkdir -p "$task_root/project/bin" "$task_root/mock"
+/bin/mkdir -p "$task_root/Contents/Resources/runtime/bin" "$task_root/Contents/Helpers" "$task_root/mock"
+readonly fixture_runtime="$task_root/Contents/Resources/runtime"
+print 'fixture recovery, never executed' > "$task_root/Contents/Helpers/AwakeRecovery"
 
-cat > "$task_root/project/bin/lid-awake" <<'RUNTIME'
+cat > "$fixture_runtime/bin/lid-awake" <<'RUNTIME'
 #!/bin/zsh -f
 readonly PROGRAM_NAME="Fixture App"
 readonly PROGRAM_BUNDLE_ID="example.fixture.app"
+sudo_rule_available() { [[ ! -e "$TEST_SETUP_ROOT/fail-permission" ]]; }
 fail() { print -u2 -- "$*"; exit 1; }
 acquire_lock() {
   print lock >> "$TEST_SETUP_ROOT/trace"
@@ -28,11 +31,6 @@ if [[ "$ZSH_EVAL_CONTEXT" == toplevel ]]; then
   print status >> "$TEST_SETUP_ROOT/trace"
 fi
 RUNTIME
-cat > "$task_root/mock/sudo" <<'SUDO'
-#!/bin/zsh -f
-[[ "$1 $2 $3 $4 $5" == '-n -l /usr/bin/pmset -a disablesleep' ]] || exit 99
-[[ ! -e "$TEST_SETUP_ROOT/fail-permission" ]]
-SUDO
 cat > "$task_root/mock/launchctl" <<'LAUNCH'
 #!/bin/zsh -f
 print -r -- "$1" >> "$TEST_SETUP_ROOT/trace"
@@ -43,9 +41,9 @@ if zsystem flock -t 0 -f competing_fd "$TEST_SETUP_ROOT/operation.lock"; then
 fi
 [[ ! -e "$TEST_SETUP_ROOT/fail-$1" ]]
 LAUNCH
-/bin/chmod 755 "$task_root/mock/"* "$task_root/project/bin/lid-awake"
+/bin/chmod 755 "$task_root/mock/"* "$fixture_runtime/bin/lid-awake"
 # Redirect every persistent location without changing the test runner's HOME.
-python3 - "$PROJECT_DIR/runtime/setup-runtime.sh" "$task_root/project/setup-runtime.sh" "$task_root/mock" <<'PY_FIXTURE'
+python3 - "$PROJECT_DIR/runtime/setup-runtime.sh" "$fixture_runtime/setup-runtime.sh" "$task_root/mock" <<'PY_FIXTURE'
 from pathlib import Path
 import shlex, sys
 body = Path(sys.argv[1]).read_text().replace('${HOME}', '${TEST_SETUP_HOME}')
@@ -53,13 +51,12 @@ rule = '/etc/sudoers.d/lid-awake-${USER}'
 if body.count(rule) != 1:
     raise SystemExit('Cannot isolate sudoers path')
 body = body.replace(rule, '${TEST_SETUP_ROOT}/rule')
-for command, mock in [('/usr/bin/sudo', 'sudo'), ('/bin/launchctl', 'launchctl')]:
-    if command not in body:
-        raise SystemExit(f'Cannot isolate {command}')
-    body = body.replace(command, shlex.quote(str(Path(sys.argv[3]) / mock)))
+if '/bin/launchctl' not in body:
+    raise SystemExit('Cannot isolate launchctl')
+body = body.replace('/bin/launchctl', shlex.quote(str(Path(sys.argv[3]) / 'launchctl')))
 Path(sys.argv[2]).write_text(body)
 PY_FIXTURE
-run_setup() { /bin/zsh -f "$task_root/project/setup-runtime.sh" > "$task_root/output" 2>&1; }
+run_setup() { /bin/zsh -f "$fixture_runtime/setup-runtime.sh" > "$task_root/output" 2>&1; }
 fail() { /bin/cat "$task_root/output" >&2; print -u2 -- "FAIL: $*"; exit 1; }
 
 if run_setup; then fail 'Missing PKG permissions accepted'; fi
@@ -79,11 +76,12 @@ done
 run_setup || fail 'Valid install failed'
 readonly agent="$TEST_SETUP_HOME/Library/LaunchAgents/dev.lid-awake.recover.plist"
 [[ "$(/usr/bin/plutil -extract AssociatedBundleIdentifiers.0 raw -o - "$agent")" == example.fixture.app ]] || fail 'Recovery service is not associated with its app'
-[[ "$(/usr/bin/plutil -extract ProgramArguments.0 raw -o - "$agent")" == "$TEST_SETUP_HOME/.local/bin/lid-awake" ]] || fail 'Home path was not escaped correctly'
-[[ "$(/usr/bin/plutil -extract ProgramArguments.1 raw -o - "$agent")" == _recover ]] || fail 'Wrong recovery command'
+[[ "$(/usr/bin/plutil -extract ProgramArguments.0 raw -o - "$agent")" == "$TEST_SETUP_HOME/.local/bin/AwakeRecovery" ]] || fail 'Wrong recovery entry or escaped home path'
+if /usr/bin/plutil -extract ProgramArguments.1 raw -o - "$agent" >/dev/null 2>&1; then fail 'Recovery entry takes no arguments'; fi
 [[ "$(/usr/bin/plutil -extract RunAtLoad raw -o - "$agent")" == true ]] || fail 'Missing RunAtLoad'
 [[ "$(/usr/bin/tr '\n' ',' < "$task_root/trace")" == 'lock,stop,bootout,enable,bootstrap,print,status,release,' ]] || fail 'Wrong install ordering'
-/usr/bin/cmp "$task_root/project/bin/lid-awake" "$TEST_SETUP_HOME/.local/bin/lid-awake" || fail 'Installed runtime differs'
+/usr/bin/cmp "$fixture_runtime/bin/lid-awake" "$TEST_SETUP_HOME/.local/bin/lid-awake" || fail 'Installed runtime differs'
+/usr/bin/cmp "$task_root/Contents/Helpers/AwakeRecovery" "$TEST_SETUP_HOME/.local/bin/AwakeRecovery" || fail 'Installed recovery differs'
 readonly progress="$TEST_SETUP_HOME/Library/Application Support/LidAwake/uninstall-state"
 /bin/mkdir -p "${progress:h}"
 print readyForFinder > "$progress"

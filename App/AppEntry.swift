@@ -5,30 +5,25 @@ import Darwin
 enum AppEntry {
     @MainActor
     static func main() {
-        let arguments = Array(CommandLine.arguments.dropFirst())
-        if arguments.first?.hasPrefix("--authorize-") == true {
-            // Run as a separate instance of this signed app, not osascript.
-            // No model/window/hotkey is created; the caller retains its operation lock.
-            _ = NSApplication.shared
-            NSApp.setActivationPolicy(.accessory)
-            do {
-                guard arguments.count == 1 else { throw AppFailure(code: .invalidInput) }
-                try AdministrativeAuthorization.perform(arguments[0])
+        let application = NSApplication.shared
+        application.setActivationPolicy(.accessory)
+        do {
+            let mode = try AppLaunch(arguments: Array(CommandLine.arguments.dropFirst()))
+            if case .authorize(let argument) = mode {
+                // No model/window/hotkey; the caller retains its operation lock.
+                try AdministrativeAuthorization.perform(argument)
                 exit(0)
-            } catch {
-                FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
-                let failure = AppFailure.normalize(error)
-                switch failure.code {
-                case .authorizationCancelled: exit(82)
-                case .invalidInput: exit(64)
-                default: exit(84)
-                }
+            }
+            let delegate = AppDelegate(model: AppModel())
+            application.delegate = delegate
+            withExtendedLifetime(delegate) { application.run() }
+        } catch {
+            FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
+            switch AppFailure.normalize(error).code {
+            case .authorizationCancelled: exit(82)
+            case .invalidInput: exit(64)
+            default: exit(84)
             }
         }
-        let application = NSApplication.shared
-        let delegate = AppDelegate()
-        application.delegate = delegate
-        application.setActivationPolicy(.accessory)
-        withExtendedLifetime(delegate) { application.run() }
     }
 }

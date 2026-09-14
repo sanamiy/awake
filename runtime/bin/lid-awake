@@ -2,6 +2,8 @@
 
 # Awake: temporarily keep a Mac notebook awake with its lid closed.
 # Privileged pmset calls use the two permissions installed by the PKG.
+# Also sourced by setup-runtime.sh and uninstall.sh to share power/state logic.
+# The CLI stays self-contained so the installed recovery copy needs no library files.
 
 set -u
 
@@ -23,6 +25,8 @@ readonly SUDO="/usr/bin/sudo"
 readonly OSASCRIPT="/usr/bin/osascript"
 readonly NOHUP="/usr/bin/nohup"
 readonly SCRIPT_PATH="${0:A}"
+
+# Shared runtime functions (including the operation lock).
 
 say() {
   print -r -- "$*"
@@ -150,10 +154,10 @@ read_metadata_value() {
 start_session() {
   local minutes="$1"
   local minimum="$2"
-  local percent source token deadline monitor_pid power
+  local percent source token deadline monitor_pid power duration
 
-  is_uint "$minutes" && (( minutes >= 1 && minutes <= 1440 )) ||
-    fail "時間は1〜1440分で指定してください。" 64
+  is_uint "$minutes" && (( minutes >= 0 && minutes <= 1440 )) ||
+    fail "時間は1〜1440分、無制限は0で指定してください。" 64
   is_uint "$minimum" && (( minimum >= 5 && minimum <= 95 )) ||
     fail "最低バッテリー残量は5〜95%で指定してください。" 64
 
@@ -178,7 +182,11 @@ start_session() {
   fi
 
   token="$(/usr/bin/uuidgen)"
-  deadline=$(( $(/bin/date +%s) + minutes * 60 ))
+  # Zero is an explicit unlimited deadline, not an already expired timestamp.
+  deadline=0
+  if (( minutes > 0 )); then
+    deadline=$(( $(/bin/date +%s) + minutes * 60 ))
+  fi
   print -r -- "$token" >| "$TOKEN_FILE"
   write_metadata "$deadline" "$minimum"
 
@@ -204,8 +212,10 @@ start_session() {
 
   # GUI permission prompts must not block the monitor's automatic cutoff.
   release_lock
-  notify "${minutes}分間、蓋を閉じても動作を継続します。残量${minimum}%で解除します。"
-  say "有効にしました: ${minutes}分 / バッテリー下限 ${minimum}%"
+  duration="${minutes}分"
+  (( minutes == 0 )) && duration="時間無制限"
+  notify "${duration}、蓋を閉じても動作を継続します。バッテリー駆動中は残量${minimum}%で解除します。"
+  say "有効にしました: ${duration} / バッテリー下限 ${minimum}%"
   say "解除: lid-awake stop"
 
   return 0
@@ -240,7 +250,7 @@ stop_session() {
 }
 
 show_status() {
-  local deadline minimum remaining percent source power
+  local deadline minimum remaining percent source power duration
   power=$(sleep_state) || {
     say "注意: スリープ設定を読み取れません。状態は不明です。"
     return 2
@@ -248,11 +258,16 @@ show_status() {
   if [[ "$power" == Yes ]] && session_owned_by_us && monitor_is_running; then
     deadline=$(read_metadata_value deadline)
     minimum=$(read_metadata_value minimum_battery)
-    remaining=$(( (deadline - $(/bin/date +%s) + 59) / 60 ))
-    (( remaining < 0 )) && remaining=0
+    if [[ "$deadline" == 0 ]]; then
+      duration="時間無制限"
+    else
+      remaining=$(( (deadline - $(/bin/date +%s) + 59) / 60 ))
+      (( remaining < 0 )) && remaining=0
+      duration="残り約${remaining}分"
+    fi
     source=$(battery_source)
     percent=$(battery_percent)
-    say "有効: 残り約${remaining}分 / バッテリー ${percent}% (${source}) / 下限 ${minimum}%"
+    say "有効: ${duration} / バッテリー ${percent}% (${source}) / 下限 ${minimum}%"
     return 0
   fi
 
@@ -300,7 +315,7 @@ monitor_session() {
       now=$(/bin/date +%s)
       source=$(battery_source)
       percent=$(battery_percent)
-      if (( now >= deadline )); then
+      if (( deadline != 0 && now >= deadline )); then
         MONITOR_REASON="設定時間が終了"
         stop_requested=1
       elif [[ "$source" == "Battery Power" ]] && is_uint "$percent" && (( percent <= minimum )); then
@@ -325,6 +340,8 @@ monitor_session() {
     /bin/sleep 15
   done
 }
+
+# Command-line entry. Sourcing this file defines functions but does not dispatch.
 
 usage() {
   cat <<'USAGE'

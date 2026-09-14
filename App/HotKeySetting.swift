@@ -7,6 +7,16 @@ struct HotKeySetting: View {
     @State private var error: String?
 
     var body: some View {
+        HStack(alignment: .top) {
+            Text(L10n.text("開始ショートカット"))
+                .frame(height: 28)
+            Spacer(minLength: 12)
+            controls
+                .frame(width: 170, alignment: .trailing)
+        }
+    }
+
+    private var controls: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 HotKeyRecorder(title: key?.label ?? L10n.text("クリックして設定"), onSelect: save,

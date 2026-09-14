@@ -47,6 +47,7 @@ for old, new in [('${HOME}', '${TEST_UNINSTALL_HOME}'),
 Path(sys.argv[2]).write_text(body)
 RENDER
 readonly cli="$TEST_UNINSTALL_HOME/.local/bin/lid-awake"
+readonly recovery="$TEST_UNINSTALL_HOME/.local/bin/AwakeRecovery"
 readonly agent="$TEST_UNINSTALL_HOME/Library/LaunchAgents/dev.lid-awake.recover.plist"
 readonly progress="$TEST_UNINSTALL_HOME/Library/Application Support/LidAwake/uninstall-state"
 fail() {
@@ -56,7 +57,7 @@ fail() {
 }
 reset_fixture() {
   /bin/mkdir -p "${cli:h}" "${agent:h}" "${progress:h}"
-  touch "$cli" "$agent" "$task_root/rule"
+  touch "$cli" "$recovery" "$agent" "$task_root/rule"
   print cleaning > "$progress"
   : > "$task_root/trace"
   export TEST_STOP_EXIT=0 TEST_AUTH_EXIT=0 TEST_BOOTOUT_EXIT=0 TEST_QUERY_EXIT=113
@@ -66,6 +67,11 @@ run_uninstall() {
   /bin/zsh -f "$task_root/runtime/uninstall.sh" > "$task_root/output" 2>&1 || actual=$?
   [[ "$actual" == "$expected" ]] || fail "Expected exit $expected, got $actual"
   [[ "$(< "$progress")" == cleaning ]] || fail 'Removal must preserve UI progress'
+  if (( expected == 0 )); then
+    [[ ! -e "$recovery" ]] || fail 'Cleanup left recovery entry'
+  else
+    [[ -e "$recovery" ]] || fail 'Failed cleanup removed recovery entry'
+  fi
 }
 reset_fixture
 run_uninstall 0

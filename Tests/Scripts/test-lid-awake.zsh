@@ -178,7 +178,8 @@ done <<'BOUNDARIES'
 1 95 0
 1440 5 0
 1440 95 0
-0 30 64
+0 30 0
+-1 30 64
 1441 30 64
 120 4 64
 120 96 64
@@ -249,6 +250,22 @@ monitor_finished() {
 restore_failure_notified() {
   /usr/bin/grep -q '解除に失敗' "${TEMP_DIR}/notifications"
 }
+
+# Unlimited skips the expired-zero deadline but keeps battery and manual stops.
+print 'AC Power' > "$TEMP_DIR/power-source"
+print 20 > "$TEMP_DIR/battery-percent"
+"$TEST_BIN" _start --minutes 0 --min-battery 30 >/dev/null
+[[ "$(/usr/bin/awk -F= '$1 == "deadline" {print $2}' "$state_dir/session.env")" == 0 ]] || fail 'Unlimited deadline not saved'
+/bin/sleep 0.5
+assert_sleep_disabled 1
+"$TEST_BIN" status | /usr/bin/grep -q '時間無制限' || fail 'Unlimited status missing'
+print 'Battery Power' > "$TEMP_DIR/power-source"
+wait_until monitor_finished
+assert_exit 86 "$TEST_BIN" _start --minutes 0 --min-battery 30
+print 80 > "$TEMP_DIR/battery-percent"
+"$TEST_BIN" _start --minutes 0 --min-battery 30 >/dev/null
+assert_exit 0 "$TEST_BIN" stop
+assert_sleep_disabled 0
 
 "$TEST_BIN" _start --minutes 1 --min-battery 30 >/dev/null
 assert_sleep_disabled 1
@@ -458,7 +475,7 @@ print -r -- 0 > "${TEMP_DIR}/sleep-disabled"
 # Invalid refresh arguments must leave the active session untouched.
 "$TEST_BIN" _start --minutes 1 --min-battery 30 >/dev/null
 saved_token=$(/bin/cat "${state_dir}/session-token")
-if "$TEST_BIN" _start --minutes 0 --min-battery 30 >/dev/null 2>&1; then fail 'Invalid refresh accepted'; fi
+if "$TEST_BIN" _start --minutes -1 --min-battery 30 >/dev/null 2>&1; then fail 'Invalid refresh accepted'; fi
 [[ "$(/bin/cat "${state_dir}/session-token")" == "$saved_token" ]] || fail 'Invalid refresh replaced active session'
 "$TEST_BIN" stop >/dev/null
 
@@ -469,7 +486,7 @@ print -r -- 0 > "${TEMP_DIR}/sleep-disabled"
 "$TEST_BIN" stop >/dev/null
 [[ ! -e "${state_dir}/session-token" ]] || fail 'External recovery left stale ownership'
 /bin/rm "${TEMP_DIR}/fail-restore"
-assert_exit 64 "$TEST_BIN" _start --minutes 0 --min-battery 30
+assert_exit 64 "$TEST_BIN" _start --minutes -1 --min-battery 30
 print -r -- 1 > "$TEMP_DIR/sleep-disabled"
 assert_exit 85 "$TEST_BIN" _start --minutes 1 --min-battery 30
 print -r -- 0 > "$TEMP_DIR/sleep-disabled"

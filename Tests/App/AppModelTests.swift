@@ -1,98 +1,60 @@
 import XCTest
 import AppKit
-import SwiftUI
 
 @MainActor
-final class AppModelTests: XCTestCase {
-    private var directory: URL!
-    private var defaults: UserDefaults!
-    private var suite: String!
-    private var runner: ModelRunner!
-    private var runtime: RuntimeClient!
-    private var session: ScreenLockSession!
-    private var displaySleep: LidDisplaySleep!
-    private var model: AppModel!
-    private var application: TestApplicationBundle!
-    private var uninstaller: AppUninstaller!
-    private var failLoginRemoval = false
-    private var lifecycleCalls: [String] = []
-
-    override func setUpWithError() throws {
-        suite = "LidAwakeModelTests-\(UUID())"
-        defaults = UserDefaults(suiteName: suite)
-        var preferences = Preferences()
-        preferences.hotKey = nil
-        preferences.save(to: defaults)
-        directory = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
-        let files = try TestRuntimeFiles(directory: directory)
-        runner = ModelRunner(progressURL: progress.url)
-        runtime = files.client(runner: runner)
-        session = ScreenLockSession()
-        session.prepareLock = {}
-        session.requestLock = {}
-        session.pause = {}
-        session.readState = { .locked }
-        displaySleep = LidDisplaySleep()
-        displaySleep.readPowerState = { .init(lidClosed: false, sleepDisabled: true) }
-        displaySleep.requestDisplaySleep = { XCTFail("Unexpected display sleep") }
-        application = try TestApplicationBundle()
-        failLoginRemoval = false
-        lifecycleCalls = []
-        uninstaller = AppUninstaller(applicationURL: application.app,
-            unregisterLoginItem: {
-                self.lifecycleCalls.append("unregister")
-                XCTAssertEqual(self.model.uninstallStage, .cleaning)
-                XCTAssertFalse(self.model.needsRecovery)
-                if self.failLoginRemoval { throw AppFailure(code: .unexpected, detail: "fixture login failure") }
-            }, showInFinder: { urls in
-                XCTAssertEqual(urls, [self.application.app])
-                self.lifecycleCalls.append("finder")
-            }, terminate: {
-                XCTAssertTrue(self.model.didFinishUninstallHandoff)
-                XCTAssertFalse(self.model.needsRecovery)
-                self.lifecycleCalls.append("quit")
+final class AppModelTests: AppModelTestCase {
+    func testUnlimitedSessionStillStopsAfterUnlock() async throws {
+        model.preferences.unlimitedDuration = true
+        try await model.perform(.start)
+        XCTAssertEqual(session.phase, .locked)
+        session.readState = { .unlocked }
+        await model.monitorSession()
+        XCTAssertEqual(session.phase, .idle)
+        XCTAssertFalse(model.needsRecovery)
+        let actions = await runner.actions
+        XCTAssertEqual(actions, ["_start", "stop"])
+    }
+    func testTerminationClaimsOperationImmediatelyAndReportsRestorationResult() async throws {
+        for exitCode: Int32 in [0, 80] {
+            model = makeModel()
+            await runner.reset()
+            try await model.perform(.start)
+            await runner.setExit(exitCode, for: "stop")
+            let response = expectation(description: "Termination response \(exitCode)")
+            XCTAssertTrue(model.prepareToTerminate { shouldTerminate in
+                XCTAssertEqual(shouldTerminate, exitCode == 0)
+                XCTAssertFalse(self.model.isBusy)
+                XCTAssertEqual(self.model.needsRecovery, exitCode != 0)
+                XCTAssertEqual(self.model.failure?.code, exitCode == 0 ? nil : .powerRestore)
+                XCTAssertEqual(self.session.phase, exitCode == 0 ? .idle : .locked)
+                response.fulfill()
             })
-        // No real commands, key registration, unlock observer, timer or saved preferences.
-        model = makeModel()
+            XCTAssertTrue(model.isBusy, "Claim the operation before returning to AppKit")
+            XCTAssertFalse(model.prepareToTerminate { _ in XCTFail("Duplicate quit must be rejected") })
+            XCTAssertThrowsError(try model.setHotKey(.standard)) {
+                XCTAssertEqual(($0 as? AppFailure)?.code, .busy)
+            }
+            await fulfillment(of: [response], timeout: 2)
+            let actions = await runner.actions
+            XCTAssertEqual(actions, ["_start", "stop"])
+        }
     }
 
-    override func tearDownWithError() throws {
-        model = nil
-        uninstaller = nil
-        session = nil
-        displaySleep = nil
-        application?.cleanUp()
-        if let suite { defaults?.removePersistentDomain(forName: suite) }
-        if let directory { try FileManager.default.removeItem(at: directory) }
-    }
-
-    func testSettingsRenderAtMinimumWidthWithLocalizedError() throws {
-        _ = NSApplication.shared
-        model.failure = AppFailure(code: .installation)
-        let host = NSHostingView(rootView: ContentView(model: model)
-            .frame(width: 480, height: 700)
-            .background(Color(nsColor: .windowBackgroundColor)))
-        host.setFrameSize(host.fittingSize)
-        host.layoutSubtreeIfNeeded()
-        let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
-        host.cacheDisplay(in: host.bounds, to: bitmap)
-        let data = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
-        let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.png")
-        attachment.name = "settings-480-localized-error"
-        attachment.lifetime = .keepAlways
-        add(attachment)
-        XCTAssertEqual(host.bounds.width, 480)
-        XCTAssertTrue(lifecycleCalls.isEmpty)
-    }
-
-    private var progress: UninstallProgress {
-        .init(url: directory.appendingPathComponent("uninstall-state"))
-    }
-
-    // The same isolated dependencies are used on first launch and every reopen.
-    private func makeModel(progress: UninstallProgress? = nil) -> AppModel {
-        AppModel(runtime: runtime, preferencesStore: defaults, lockedSession: session, lidDisplaySleep: displaySleep,
-            monitorSystemEvents: false, uninstallProgress: progress ?? self.progress, uninstaller: uninstaller)
+    func testBackgroundStartupKeepsRegistrationFailureAndSkipsUninstallingApp() throws {
+        for stage in [nil, UninstallProgress.Stage.cleaning, .readyForFinder] {
+            if let stage { try progress.save(stage) }
+            var attempts = 0
+            let hotKey = GlobalHotKey(register: { _, _ in
+                attempts += 1
+                throw AppFailure(code: .shortcut)
+            })
+            Preferences().save(to: defaults)
+            model = makeModel(hotKey: hotKey)
+            model.startBackgroundServices()
+            model.startBackgroundServices()
+            XCTAssertEqual(attempts, stage == nil ? 1 : 0)
+            XCTAssertEqual(model.failure?.code, stage == nil ? .shortcut : nil)
+        }
     }
 
     // MARK: - Session lifecycle and recovery
@@ -142,7 +104,8 @@ final class AppModelTests: XCTestCase {
         await expectFailure(.start, .installation)
         XCTAssertTrue(model.needsRepair)
         XCTAssertTrue(model.installationFailure?.detail?.contains(L10n.text("内部CLIが見つからないか、内容または実行権限が一致しません。")) == true)
-        XCTAssertNil(model.failure, "The installation section already displays this failure")
+        XCTAssertEqual(model.failure?.code, .installation, "Retain the actual operation failure")
+        XCTAssertNil(model.visibleFailure, "The installation section already displays this failure")
         XCTAssertEqual(session.phase, .idle)
         XCTAssertFalse(model.needsRecovery)
         let calls = await runner.actions
@@ -251,6 +214,7 @@ final class AppModelTests: XCTestCase {
             do { try await self.model.perform(.stop); XCTFail("Concurrent stop must not run") }
             catch { XCTAssertEqual((error as? AppFailure)?.code, .busy) }
             XCTAssertTrue(self.model.isBusy, "Rejected operation must not release the owner's busy flag")
+            XCTAssertNil(self.model.failure, "Rejected operation must not overwrite the owner's result")
             state = .locked
         }
         try await model.perform(.start)
@@ -258,6 +222,38 @@ final class AppModelTests: XCTestCase {
         XCTAssertFalse(model.isBusy)
         let calls = await runner.actions
         XCTAssertEqual(calls, ["_start"])
+    }
+
+    func testEarlierFailureCannotOverwriteNewerRecoveryResultDuringRefresh() async {
+        for nextExit: Int32 in [0, 85] {
+            model = makeModel()
+            await runner.reset()
+            await runner.setExit(80, for: "stop")
+            await runner.onNextRegistrationCheck {
+                XCTAssertFalse(self.model.isBusy)
+                XCTAssertEqual(self.model.failure?.code, .powerRestore)
+                await self.runner.setExit(nextExit, for: "recover")
+                await self.model.retryStop()
+            }
+            // The first caller still receives its own error after diagnostic I/O.
+            await expectFailure(.stop, .powerRestore)
+            XCTAssertEqual(model.failure?.code, nextExit == 0 ? nil : .foreignSession)
+            XCTAssertEqual(model.needsRecovery, nextExit != 0)
+            let actions = await runner.actions
+            XCTAssertEqual(actions, ["stop", "recover"])
+        }
+    }
+
+    func testPermissionFailureBeforeStartDoesNotClearEarlierRecoveryWarning() async {
+        await runner.setExit(80, for: "stop")
+        await expectFailure(.stop, .powerRestore)
+        session.prepareLock = { throw AppFailure(code: .screenPermission) }
+        await expectFailure(.start, .screenPermission)
+        XCTAssertEqual(model.failure?.code, .screenPermission)
+        XCTAssertNil(model.visibleFailure, "Permission guidance owns the current permission state")
+        XCTAssertTrue(model.needsRecovery)
+        let actions = await runner.actions
+        XCTAssertEqual(actions, ["stop"], "No enable or rollback before permission is obtained")
     }
 
     private func expectFailure(_ action: SessionAction, _ code: FailureCode, file: StaticString = #filePath, line: UInt = #line) async {
@@ -268,12 +264,13 @@ final class AppModelTests: XCTestCase {
 
     // MARK: - Uninstall and persisted progress
 
-    func testPartialUninstallSuppressesRepairAndLoginRegistrationGuidance() async throws {
+    func testPartialUninstallSuppressesRepairAndBackgroundRegistrationGuidance() async throws {
         try FileManager.default.removeItem(at: directory.appendingPathComponent("installed-cli"))
         await model.refresh()
         XCTAssertTrue(model.needsRepair)
-        failLoginRemoval = true
+        failBackgroundRemoval = true
         await model.uninstall()
+        await model.revealInFinderAndQuit()
         await model.refresh()
         model.refreshLoginItemStatus()
         model.registerLoginItem() // Must return without invoking the live service.
@@ -286,7 +283,7 @@ final class AppModelTests: XCTestCase {
     }
 
     func testPartialUninstallPreventsRestartAndRechecksPowerBeforeQuit() async throws {
-        failLoginRemoval = true
+        failBackgroundRemoval = true
         await model.uninstall()
         do {
             try await model.perform(.start)
@@ -349,18 +346,20 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(lifecycleCalls, ["unregister", "finder", "quit"], "No duplicate handoff or cleanup")
     }
 
-    func testLoginRemovalFailureResumesThroughTheRealEntryPoint() async {
-        failLoginRemoval = true
+    func testBackgroundRemovalFailureCanBeRetriedBeforeFinderHandoff() async {
+        failBackgroundRemoval = true
         await model.uninstall()
+        await model.revealInFinderAndQuit()
         XCTAssertEqual(model.failure?.code, .loginRemoval)
         XCTAssertEqual(model.uninstallStage, .cleaning)
-        failLoginRemoval = false
+        failBackgroundRemoval = false
         await model.uninstall()
         XCTAssertNil(model.failure)
         XCTAssertTrue(model.isReadyForFinder)
-        XCTAssertEqual(lifecycleCalls, ["unregister", "unregister"])
+        await model.revealInFinderAndQuit()
+        XCTAssertEqual(lifecycleCalls, ["unregister", "unregister", "finder", "quit"])
         let actions = await runner.actions
-        XCTAssertEqual(actions, ["remove", "remove"])
+        XCTAssertEqual(actions, ["remove", "remove", "stop"])
     }
 
     func testRuntimeRemovalFailureNeverUnregistersOrReportsReady() async {
@@ -381,6 +380,17 @@ final class AppModelTests: XCTestCase {
         }
     }
 
+    func testCancelledUninstallPreservesEarlierRecoveryWarning() async {
+        await runner.setExit(80, for: "stop")
+        await expectFailure(.stop, .powerRestore)
+        await runner.setExit(82, for: "remove")
+        await model.uninstall()
+        XCTAssertEqual(model.failure?.code, .authorizationCancelled)
+        XCTAssertTrue(model.needsRecovery)
+        XCTAssertEqual(model.uninstallStage, .cleaning)
+        XCTAssertTrue(lifecycleCalls.isEmpty)
+    }
+
     func testProgressWriteFailurePreventsAnyCleanup() async throws {
         let blocked = directory.appendingPathComponent("not-a-directory")
         try Data().write(to: blocked)
@@ -395,11 +405,7 @@ final class AppModelTests: XCTestCase {
 
     func testFinalProgressWriteFailureDoesNotReportReadyAndCanBeRetried() async throws {
         let progressURL = directory.appendingPathComponent("uninstall-state")
-        uninstaller.unregisterLoginItem = {
-            self.lifecycleCalls.append("unregister")
-            try FileManager.default.removeItem(at: progressURL)
-            try FileManager.default.createDirectory(at: progressURL, withIntermediateDirectories: false)
-        }
+        await runner.setCorruptProgressAfterRemoval(true)
         model = makeModel()
         await model.uninstall()
         XCTAssertEqual(model.failure?.code, .runtimeRemoval)
@@ -411,7 +417,7 @@ final class AppModelTests: XCTestCase {
         // Repair only the test fixture, then retry the real workflow after reopen.
         try FileManager.default.removeItem(at: progressURL)
         try UninstallProgress(url: progressURL).save(.cleaning)
-        uninstaller.unregisterLoginItem = { self.lifecycleCalls.append("unregister") }
+        await runner.setCorruptProgressAfterRemoval(false)
         model = makeModel()
         await model.uninstall()
         XCTAssertTrue(model.isReadyForFinder)
@@ -427,39 +433,5 @@ final class AppModelTests: XCTestCase {
         let actions = await runner.actions
         XCTAssertTrue(actions.isEmpty)
         XCTAssertTrue(lifecycleCalls.isEmpty)
-    }
-}
-
-private actor ModelRunner: CommandRunning {
-    private let progressURL: URL
-    init(progressURL: URL) { self.progressURL = progressURL }
-    private var exitCodes: [String: Int32] = [:]
-    private(set) var actions: [String] = []
-
-    func setExit(_ code: Int32, for action: String) { exitCodes[action] = code }
-    func reset() { exitCodes = [:]; actions = [] }
-
-    func run(_ executable: URL, arguments: [String], environment: [String: String]) async throws -> CommandResult {
-        if executable.path == "/usr/bin/sudo" || executable.path == "/bin/launchctl" {
-            return CommandResult(code: 0, text: "fixture registration")
-        }
-        guard executable.path == "/bin/zsh", arguments.count >= 3 else {
-            XCTFail("Unexpected model command: \(executable.path)")
-            throw AppFailure(code: .unexpected)
-        }
-        let runtimeAction: String
-        switch (URL(fileURLWithPath: arguments[2]).lastPathComponent, arguments.dropFirst(3).first) {
-        case ("uninstall.sh", nil):
-            runtimeAction = "remove"
-            // Shared ordering invariant: removal may only begin after saving intent.
-            XCTAssertEqual(UninstallProgress(url: progressURL).load(), .cleaning)
-        case ("lid-awake", let action?) where ["_start", "stop", "recover"].contains(action):
-            runtimeAction = action
-        default:
-            XCTFail("Unexpected model runtime arguments: \(arguments)")
-            throw AppFailure(code: .unexpected)
-        }
-        actions.append(runtimeAction)
-        return CommandResult(code: exitCodes[runtimeAction] ?? 0, text: "fixture \(runtimeAction)")
     }
 }

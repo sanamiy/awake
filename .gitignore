@@ -10,6 +10,7 @@ LidAwake.xcodeproj/
 experiments/
 test-results/
 design/settings-audit/
+design/slide/presentation-local/
 .env
 .env.*
 !.env.example

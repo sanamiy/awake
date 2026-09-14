@@ -32,7 +32,7 @@ final class RuntimeClientTests: XCTestCase {
             ["-f", "--", files.bundledCLI.path, "_start", "--minutes", "45", "--min-battery", "40"],
             ["-f", "--", files.bundledCLI.path, "stop"],
             ["-f", "--", files.bundledCLI.path, "recover"],
-            ["-f", "--", directory.appendingPathComponent("uninstall.sh").path]
+            ["-f", "--", files.runtimeDirectory.appendingPathComponent("uninstall.sh").path]
         ])
         for call in calls.prefix(2) {
             XCTAssertEqual(call.environment, ["LID_AWAKE_NO_NOTIFY": "1"])
@@ -45,7 +45,7 @@ final class RuntimeClientTests: XCTestCase {
     func testInvalidPreferencesNeverLaunchAProcess() async {
         let runner = StubRunner(results: [])
         var preferences = Preferences()
-        preferences.minutes = 0
+        preferences.minutes = -1
         do {
             try await client(runner).perform(.start(preferences))
             XCTFail("Invalid settings must not start the runtime")
@@ -127,6 +127,20 @@ final class RuntimeClientTests: XCTestCase {
     func testUnregisteredRecoveryAgentRequiresRepair() async throws {
         let runner = StubRunner(results: [0, 0, 1].map { CommandResult(code: Int32($0), text: "") })
         await assertInstallationFailure(client(runner), component: L10n.text("復旧サービスの登録"))
+    }
+
+    func testMissingChangedOrNonExecutableRecoveryEntryRequiresRepair() async throws {
+        let runner = StubRunner(results: [])
+        let detail = L10n.text("復旧用LaunchAgentの設定が見つからないか、内容が一致しません。")
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: files.installedRecovery.path)
+        await assertInstallationFailure(client(runner), component: detail)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: files.installedRecovery.path)
+        try Data("outdated recovery".utf8).write(to: files.installedRecovery)
+        await assertInstallationFailure(client(runner), component: detail)
+        try FileManager.default.removeItem(at: files.installedRecovery)
+        await assertInstallationFailure(client(runner), component: detail)
+        let calls = await runner.calls
+        XCTAssertTrue(calls.isEmpty)
     }
 
     func testNonExecutableRuntimeRequiresRepair() async throws {

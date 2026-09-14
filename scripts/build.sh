@@ -12,9 +12,10 @@ if [[ "$identity" == 'Developer ID Application:'* ]]; then
   # Developer ID distribution needs Apple's secure timestamp, not a local signing time.
   signing_options+=("OTHER_CODE_SIGN_FLAGS=--timestamp" "CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO")
 fi
+# Recreate the bundle so removed helpers/resources cannot leak into a release.
 xcodebuild -project LidAwake.xcodeproj -scheme LidAwake -configuration Release \
   -derivedDataPath .build -destination 'generic/platform=macOS' \
-  "CODE_SIGN_IDENTITY=$identity" CODE_SIGN_STYLE=Manual "${signing_options[@]}" build
+  "CODE_SIGN_IDENTITY=$identity" CODE_SIGN_STYLE=Manual "${signing_options[@]}" clean build
 mkdir -p dist
 if [[ -e "dist/$LA_APP_NAME.app" ]]; then
   /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "dist/$LA_APP_NAME.app/Contents/Info.plist" | /usr/bin/grep -qxF "$LA_BUNDLE_ID" || exit 1

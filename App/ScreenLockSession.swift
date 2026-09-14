@@ -61,6 +61,8 @@ final class ScreenLockSession {
     var requestLock: () throws -> Void = { try DirectScreenLock().requestLock() }
     var pause: () async throws -> Void = { try await Task.sleep(nanoseconds: 250_000_000) }
 
+    /// `restore` is the model's complete stop operation: it confirms power restoration
+    /// and calls didStop() alongside the other recovery-state updates.
     func start(enable: () async throws -> Void, restore: () async throws -> Void) async throws {
         // Permission setup must finish before changing the power state.
         try prepareLock()
@@ -76,7 +78,7 @@ final class ScreenLockSession {
         } catch {
             let original = error
             phase = .needsStop
-            do { try await restore(); didStop() }
+            do { try await restore() }
             catch {
                 throw AppFailure(code: .powerRestore, detail: L10n.text("開始時: %@\n解除時: %@", original.localizedDescription, error.localizedDescription))
             }

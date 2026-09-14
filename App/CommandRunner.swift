@@ -5,7 +5,7 @@ struct CommandResult {
     let text: String
 }
 
-protocol CommandRunning {
+protocol CommandRunning: Sendable {
     func run(_ executable: URL, arguments: [String], environment: [String: String]) async throws -> CommandResult
 }
 

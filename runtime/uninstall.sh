@@ -6,6 +6,7 @@ readonly RUNTIME_DIR="${0:A:h}"
 source "${RUNTIME_DIR}/bin/lid-awake"
 
 readonly INSTALL_BIN="${HOME}/.local/bin/lid-awake"
+readonly INSTALL_RECOVERY="${HOME}/.local/bin/AwakeRecovery"
 readonly LAUNCH_AGENT="${HOME}/Library/LaunchAgents/dev.lid-awake.recover.plist"
 readonly SUDOERS_FILE="/etc/sudoers.d/lid-awake-${USER}"
 readonly AUTHORIZER="${LID_AWAKE_AUTHORIZER:-${DEFAULT_AUTHORIZER}}"
@@ -36,6 +37,7 @@ task_query_code=0
   fail "復旧サービスの解除を確認できません（解除: ${task_bootout_code}、確認: ${task_query_code}）。残りのファイルは保持しています。" 83
 /bin/rm -f "$LAUNCH_AGENT"
 /bin/rm -f "$INSTALL_BIN"
+/bin/rm -f "$INSTALL_RECOVERY"
 /bin/rmdir "${HOME}/.local/bin" >/dev/null 2>&1 || true
 clear_session_state
 /bin/rm -f "$LOG_FILE"

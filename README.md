@@ -42,9 +42,11 @@ While Awake Mode is active:
 
 | Setting | Description | Default |
 | --- | --- | --- |
-| Keep-awake duration | Maximum time to keep your Mac awake | 120 min |
-| Battery limit | Charge level at which to stop when running on battery | 30% |
+| Keep-awake duration | Use the slider to select 15 min, 30 min, 1 hr, 2 hr, 4 hr, 8 hr, 24 hr, or Unlimited | 120 min |
+| Battery limit | Charge level at which to stop when running on battery; select 5–95% in 5% steps with the slider | 30% |
 | Start shortcut | Keyboard shortcut to start Awake Mode | ⌃⌘W |
+
+With Unlimited selected, Awake Mode still ends when you unlock the screen, reach the battery limit while on battery power, or quit the app.
 
 ## After closing the settings window
 

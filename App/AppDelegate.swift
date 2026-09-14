@@ -1,33 +1,49 @@
 import SwiftUI
 import AppKit
+import Carbon
+import OSLog
 
 /// Stays alive without a window, Dock tile, or status item.
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuItemValidation {
     private let model: AppModel
+    private let registerLoginItem: @MainActor (AppModel) -> Void
+    private let startupLog = Logger(subsystem: AppIdentity.bundleIdentifier, category: "startup")
 
-    init(model: AppModel? = nil) {
-        self.model = model ?? .shared
+    init(model: AppModel,
+         registerLoginItem: @escaping @MainActor (AppModel) -> Void = { $0.registerLoginItem() }) {
+        self.model = model
+        self.registerLoginItem = registerLoginItem
         super.init()
     }
 
     private var settingsWindow: NSWindow?
     private var refreshTask: Task<Void, Never>?
-    private var didLaunch = false
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // Manual use also works when automatic background startup is disabled.
+        model.startBackgroundServices()
+        for eventID in [kAEOpenApplication, kAEReopenApplication] {
+            NSAppleEventManager.shared().setEventHandler(self,
+                andSelector: #selector(handleOpenEvent(_:withReplyEvent:)),
+                forEventClass: kCoreEventClass, andEventID: eventID)
+        }
+        installMenu()
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        model.showSettings = { [weak self] in self?.showSettings() }
-        installMenu()
-        model.registerLoginItem()
-        didLaunch = true
-        let event = NSAppleEventManager.shared().currentAppleEvent
-        if model.isUninstallPending || !LoginStartup.isLoginLaunch(event) { showSettings() }
+        startupLog.info("Initialization finished")
+        registerLoginItem(model)
     }
 
-    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if didLaunch { showSettings() }
-        return false
+    @objc func handleOpenEvent(_ event: NSAppleEventDescriptor, withReplyEvent reply: NSAppleEventDescriptor) {
+        let show = AppLaunch.requestsSettings(event)
+        startupLog.info("Open event received; showSettings=\(show)")
+        if show { showSettings() }
     }
+
+    // Do not create an initial window through AppKit's default untitled-file path.
+    func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool { false }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
@@ -37,7 +53,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc func showSettings() {
         guard !model.didFinishUninstallHandoff else { return }
-        model.refreshAccessibilityPermission()
         if settingsWindow == nil {
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 440),
                                   styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
@@ -55,9 +70,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             window.center()
             settingsWindow = window
         }
-        model.refreshLoginItemStatus()
         NSApp.setActivationPolicy(.regular)
-        settingsWindow?.deminiaturize(nil)
+        if settingsWindow?.isMiniaturized == true { settingsWindow?.deminiaturize(nil) }
         settingsWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         if refreshTask == nil {
@@ -83,15 +97,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // AppModel retains the hotkey and screen-lock monitor independently.
     }
 
+    @objc func enterAwakeMode() {
+        Task { try? await model.perform(.start) }
+    }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(enterAwakeMode) {
+            return !model.isBusy && !model.isUninstallPending && !model.didFinishUninstallHandoff
+        }
+        return true
+    }
+
     private func installMenu() {
         let menu = NSMenu()
         let appItem = NSMenuItem()
         let appMenu = NSMenu(title: AppIdentity.name)
+        let start = appMenu.addItem(withTitle: L10n.text("Awake Modeに入る"), action: #selector(enterAwakeMode), keyEquivalent: "")
+        start.target = self
+        start.image = NSImage(systemSymbolName: "lock", accessibilityDescription: nil)
+        appMenu.addItem(.separator())
         let settings = appMenu.addItem(withTitle: L10n.text("設定を開く…"), action: #selector(showSettings), keyEquivalent: ",")
         settings.target = self
         appMenu.addItem(withTitle: L10n.text("ウインドウを閉じる"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: L10n.text("スリープ防止を停止して終了"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quit = appMenu.addItem(withTitle: L10n.text("%@を終了", AppIdentity.name), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        // nil restores AppKit's automatic quit symbol; an empty image suppresses it.
+        quit.image = NSImage(size: NSSize(width: 16, height: 16))
         appItem.submenu = appMenu
         menu.addItem(appItem)
         let edit = NSMenuItem()
@@ -106,15 +137,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if model.didFinishUninstallHandoff { return .terminateNow }
-        guard !model.isBusy else {
-            model.failure = AppFailure(code: .busy)
-            showSettings()
-            return .terminateCancel
-        }
-        Task {
-            do { try await model.perform(.stop); sender.reply(toApplicationShouldTerminate: true) }
-            catch { sender.reply(toApplicationShouldTerminate: false) }
-        }
-        return .terminateLater
+        return model.prepareToTerminate { shouldTerminate in
+            sender.reply(toApplicationShouldTerminate: shouldTerminate)
+        } ? .terminateLater : .terminateCancel
     }
 }

@@ -1,13 +1,7 @@
 import ServiceManagement
-import AppKit
-import Carbon
 
 enum LoginStartup {
-    static func isLoginLaunch(_ event: NSAppleEventDescriptor?) -> Bool {
-        event?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
-    }
-
-    /// Register once per launch only when absent; never fight macOS approval.
+    /// Register once when absent; leave approval decisions to macOS.
     static func registerIfNeeded(status: () -> SMAppService.Status, register: () throws -> Void) -> String? {
         do {
             switch status() {

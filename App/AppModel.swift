@@ -3,10 +3,10 @@ import Combine
 import Foundation
 import ServiceManagement
 import CoreGraphics
+import OSLog
 
 @MainActor
 final class AppModel: ObservableObject {
-    static let shared = AppModel()
     @Published var preferences: Preferences {
         didSet {
             if preferences != oldValue { preferences.save(to: preferencesStore) }
@@ -17,49 +17,69 @@ final class AppModel: ObservableObject {
     @Published private(set) var needsRecovery = false
     @Published private(set) var isBusy = false
     @Published var failure: AppFailure?
+    // Keep the actual error, but let the current permission/installation sections
+    // explain those conditions without a second, potentially stale message.
+    var visibleFailure: AppFailure? {
+        if failure?.code == .screenPermission { return nil }
+        if needsRepair, failure?.code == .installation { return nil }
+        return failure
+    }
     @Published private(set) var needsAccessibilityPermission = !CGPreflightPostEventAccess()
     @Published private(set) var loginItemIssue: String?
-    var showSettings: (() -> Void)?
     private(set) var didFinishUninstallHandoff = false
     @Published private(set) var uninstallStage: UninstallProgress.Stage?
     var isUninstallPending: Bool { uninstallStage != nil }
     var isReadyForFinder: Bool { uninstallStage == .readyForFinder }
     private let uninstallProgress: UninstallProgress
-    private let uninstaller: AppUninstaller
+    private let uninstaller: UninstallSystemActions
     private let preferencesStore: UserDefaults
     private let runtime: RuntimeClient
-    private let hotKey = GlobalHotKey()
+    private let hotKey: GlobalHotKey
+    private let monitorSystemEvents: Bool
+    private var didStartBackgroundServices = false
     private var isRefreshing = false
     private let lockedSession: ScreenLockSession
     private let lidDisplaySleep: LidDisplaySleep
     private var screenMonitor: Task<Void, Never>?
     private var unlockObserver: NSObjectProtocol?
-    private var didPresentAutomaticStopError = false
 
     init(runtime: RuntimeClient = .live, preferencesStore: UserDefaults = .standard,
          lockedSession: ScreenLockSession? = nil, lidDisplaySleep: LidDisplaySleep? = nil,
          monitorSystemEvents: Bool = true, uninstallProgress: UninstallProgress = .init(),
-         uninstaller: AppUninstaller? = nil) {
+         uninstaller: UninstallSystemActions? = nil, hotKey: GlobalHotKey? = nil) {
+        self.hotKey = hotKey ?? GlobalHotKey()
+        self.monitorSystemEvents = monitorSystemEvents
         self.uninstallProgress = uninstallProgress
-        self.uninstaller = uninstaller ?? AppUninstaller()
+        self.uninstaller = uninstaller ?? UninstallSystemActions()
         self.uninstallStage = uninstallProgress.load()
         self.runtime = runtime
         self.preferencesStore = preferencesStore
         self.preferences = Preferences.load(from: preferencesStore)
         self.lockedSession = lockedSession ?? ScreenLockSession()
         self.lidDisplaySleep = lidDisplaySleep ?? LidDisplaySleep()
-        if monitorSystemEvents { startMonitoring() }
     }
 
-    private func startMonitoring() {
+    /// Called once at will-finish-launching, before menus, windows or login-item checks.
+    /// Constructing a model or opening/closing settings never starts another listener.
+    func startBackgroundServices() {
+        guard !didStartBackgroundServices else { return }
+        didStartBackgroundServices = true
         hotKey.onPress = { [weak self] in
             try? await self?.perform(.start)
         }
         do {
             try hotKey.setSuspended(isUninstallPending, for: .uninstalling)
-            if !isUninstallPending { try hotKey.setKey(preferences.hotKey) }
+            if !isUninstallPending {
+                try hotKey.setKey(preferences.hotKey)
+                Logger(subsystem: AppIdentity.bundleIdentifier, category: "startup")
+                    .info("Shortcut initialization complete; assigned=\(self.preferences.hotKey != nil)")
+            }
         }
-        catch { failure = AppFailure.normalize(error, fallback: .shortcut) }
+        catch {
+            Logger(subsystem: AppIdentity.bundleIdentifier, category: "startup").error("Shortcut registration failed")
+            failure = AppFailure.normalize(error, fallback: .shortcut)
+        }
+        guard monitorSystemEvents else { return }
         // This notification is an implementation detail, so polling also checks
         // the state. Never treat app activation or display wake as screen unlock.
         unlockObserver = DistributedNotificationCenter.default().addObserver(
@@ -86,27 +106,15 @@ final class AppModel: ObservableObject {
     }
 
     func monitorSession() async {
-        let state = lockedSession.readState()
-        lockedSession.observe(state)
-        await stopAfterUnlockIfNeeded(screenState: state)
-        sleepDisplaysAfterLidCloseIfNeeded()
-    }
-
-    private func stopAfterUnlockIfNeeded(screenState: ScreenLockState) async {
-        guard !didFinishUninstallHandoff, lockedSession.needsStop, !isBusy else { return }
-        do {
-            try await runOperation { try await self.restoreSleep(.stop) }
-            didPresentAutomaticStopError = false
-        } catch {
-            failure = AppFailure.normalize(error, fallback: .powerRestore)
-            if !didPresentAutomaticStopError, screenState == .unlocked {
-                didPresentAutomaticStopError = true
-                showSettings?()
+        // Latch unlocks even while an operation is in progress.
+        lockedSession.observe(lockedSession.readState())
+        if !didFinishUninstallHandoff, lockedSession.needsStop, !isBusy {
+            // runOperation records the error; the session retains the stop request.
+            try? await runOperation(fallback: .powerRestore) {
+                try await self.restoreSleep(.stop)
             }
         }
-    }
-
-    private func sleepDisplaysAfterLidCloseIfNeeded() {
+        // The awaited stop/refresh may have allowed another operation to start.
         guard !didFinishUninstallHandoff, !isBusy else { return }
         do {
             try lidDisplaySleep.update(sessionActive: lockedSession.phase == .locked,
@@ -133,25 +141,16 @@ final class AppModel: ObservableObject {
     }
 
     func setEditingHotKey(_ editing: Bool) {
+        guard didStartBackgroundServices else { return }
         do { try hotKey.setSuspended(editing, for: .editing) }
         catch { failure = AppFailure.normalize(error, fallback: .shortcut) }
     }
 
     func setHotKey(_ key: HotKey?) throws {
         guard !isBusy, !isUninstallPending else { throw AppFailure(code: .busy) }
-        try hotKey.setKey(key)
+        if didStartBackgroundServices { try hotKey.setKey(key) }
         preferences.hotKey = key
         failure = nil
-    }
-
-    private func present(_ error: Error) {
-        refreshAccessibilityPermission()
-        // The permission section already explains the next step. Avoid leaving
-        // a duplicate error behind after the user grants access.
-        let mapped = AppFailure.normalize(error)
-        failure = (mapped.code == .screenPermission && needsAccessibilityPermission)
-            || (needsRepair && mapped.code == .installation) ? nil : mapped
-        showSettings?()
     }
 
     // All entry points report failures once. App termination also needs the
@@ -160,16 +159,11 @@ final class AppModel: ObservableObject {
         if isUninstallPending, case .start = action {
             throw AppFailure(code: .uninstallPending)
         }
-        do {
-            try await runOperation {
-                switch action {
-                case .start: try await self.start()
-                case .stop: try await self.restoreSleep(.stop)
-                }
+        try await runOperation {
+            switch action {
+            case .start: try await self.start()
+            case .stop: try await self.restoreSleep(.stop)
             }
-        } catch {
-            present(error)
-            throw error
         }
     }
 
@@ -194,22 +188,60 @@ final class AppModel: ObservableObject {
         installationFailure = diagnosis
     }
 
-    /// Owns the busy lifetime and refresh for every mutating operation.
+    /// Normal async operations share the gate/reporting with the modal quit path.
     /// Recovery decisions stay with the operation that knows whether it restored sleep.
-    private func runOperation(_ operation: () async throws -> Void) async throws {
+    private func runOperation(fallback: FailureCode = .unexpected,
+                              _ operation: () async throws -> Void) async throws {
+        try beginOperation()
+        var operationFailure: AppFailure?
+        do {
+            try await operation()
+        } catch {
+            operationFailure = AppFailure.normalize(error, fallback: fallback)
+        }
+        // Publish before yielding to diagnostic I/O. A newer operation may run
+        // during refresh; never overwrite its result when this call resumes.
+        finishOperation(operationFailure)
+        if !didFinishUninstallHandoff { await refresh() }
+        if let operationFailure { throw operationFailure }
+    }
+
+    private func beginOperation() throws {
+        // Rejected calls must not modify the active operation's state.
         guard !isBusy, !didFinishUninstallHandoff else { throw AppFailure(code: .busy) }
         isBusy = true
         failure = nil
-        let result: Result<Void, Error>
-        do {
-            try await operation()
-            result = .success(())
-        } catch {
-            result = .failure(error)
-        }
+    }
+
+    private func finishOperation(_ operationFailure: AppFailure?) {
         isBusy = false
-        if !didFinishUninstallHandoff { await refresh() }
-        try result.get()
+        if let operationFailure { failure = operationFailure }
+    }
+
+    /// Claim the operation synchronously before AppKit enters its modal quit loop.
+    /// MainActor Tasks cannot be relied on to progress inside that nested loop.
+    func prepareToTerminate(reply: @escaping @MainActor (Bool) -> Void) -> Bool {
+        do { try beginOperation() }
+        catch { return false }
+        let runtime = self.runtime
+        Task.detached {
+            let result: Result<Void, Error>
+            do { try await runtime.perform(.stop); result = .success(()) }
+            catch { result = .failure(error) }
+            // Deliver directly on the main run loop, including AppKit's quit mode.
+            // Do not enqueue another MainActor Task here.
+            RunLoop.main.perform(inModes: [.default, .modalPanel]) {
+                MainActor.assumeIsolated {
+                    var operationFailure: AppFailure?
+                    do { try self.finishRestoringSleep(result) }
+                    catch { operationFailure = AppFailure.normalize(error, fallback: .powerRestore) }
+                    self.finishOperation(operationFailure)
+                    // No diagnostic await or other yield between restoration and reply.
+                    reply(operationFailure == nil)
+                }
+            }
+        }
+        return true
     }
 
     private func didRestoreSleep() {
@@ -220,11 +252,9 @@ final class AppModel: ObservableObject {
 
     func retryStop() async {
         guard !isBusy else { return }
-        do {
-            try await runOperation {
-                try await self.restoreSleep(.recover)
-            }
-        } catch { failure = AppFailure.normalize(error, fallback: .powerRestore) }
+        try? await runOperation(fallback: .powerRestore) {
+            try await self.restoreSleep(.recover)
+        }
     }
 
     private func saveUninstallStage(_ stage: UninstallProgress.Stage) throws {
@@ -239,7 +269,6 @@ final class AppModel: ObservableObject {
     private func start() async throws {
         let snapshot = preferences
         lidDisplaySleep.reset()
-        didPresentAutomaticStopError = false
         await updateInstallationDiagnosis()
         if let installationFailure { throw installationFailure }
         // Do not intercept the system's ⌃⌘Q if it is also the user's start key.
@@ -248,27 +277,22 @@ final class AppModel: ObservableObject {
             do { try hotKey.setSuspended(false, for: .locking) }
             catch { failure = AppFailure.normalize(error, fallback: .shortcut) }
         }
-        do {
-            try await lockedSession.start(
-                enable: { try await self.runtime.perform(.start(snapshot)) },
-                restore: {
-                    try await self.runtime.perform(.stop)
-                    // ScreenLockSession resets its phase after this returns.
-                    // Clear a recovery warning left by an earlier failed attempt too.
-                    self.needsRecovery = false
-                })
-        } catch {
-            // The start error may describe a broken CLI even after rollback
-            // succeeded. Only an uncompleted rollback requires recovery here.
-            needsRecovery = needsRecovery || lockedSession.needsStop
-            throw error
-        }
+        try await lockedSession.start(
+            enable: { try await self.runtime.perform(.start(snapshot)) },
+            restore: { try await self.restoreSleep(.stop) })
         needsRecovery = false
     }
 
     private func restoreSleep(_ action: RuntimeClient.Action) async throws {
+        let result: Result<Void, Error>
+        do { try await runtime.perform(action); result = .success(()) }
+        catch { result = .failure(error) }
+        try finishRestoringSleep(result)
+    }
+
+    private func finishRestoringSleep(_ result: Result<Void, Error>) throws {
         do {
-            try await runtime.perform(action)
+            try result.get()
             didRestoreSleep()
         } catch {
             // A failed stop has not confirmed restoration, regardless of its exit code.
@@ -279,8 +303,8 @@ final class AppModel: ObservableObject {
 
     func uninstall() async {
         guard !isBusy else { return }
-        do {
-            try await runOperation {
+        try? await runOperation(fallback: .runtimeRemoval) {
+            do {
                 try self.uninstaller.validateTarget()
                 try self.saveUninstallStage(.cleaning)
                 try await self.runtime.perform(.remove)
@@ -288,11 +312,11 @@ final class AppModel: ObservableObject {
                 self.didRestoreSleep()
                 try await self.uninstaller.removeLoginItem()
                 try self.saveUninstallStage(.readyForFinder)
+            } catch {
+                self.needsRecovery = self.needsRecovery || self.lockedSession.needsStop
+                    || AppFailure.normalize(error).suggestsPowerRecovery
+                throw error
             }
-        } catch {
-            needsRecovery = needsRecovery || lockedSession.needsStop
-                || AppFailure.normalize(error).suggestsPowerRecovery
-            present(AppFailure.normalize(error, fallback: .runtimeRemoval))
         }
     }
 
@@ -305,16 +329,14 @@ final class AppModel: ObservableObject {
 
     func revealInFinderAndQuit() async {
         guard isReadyForFinder, !isBusy else { return }
-        do {
-            try await runOperation {
-                // Saved UI progress never bypasses the live power check.
-                try await self.restoreSleep(.stop)
-                try self.uninstaller.reveal()
-                self.didFinishUninstallHandoff = true
-                self.screenMonitor?.cancel()
-                self.uninstaller.terminate()
-            }
-        } catch { present(error) }
+        try? await runOperation {
+            // Saved UI progress never bypasses the live power check.
+            try await self.restoreSleep(.stop)
+            try self.uninstaller.reveal()
+            self.didFinishUninstallHandoff = true
+            self.screenMonitor?.cancel()
+            self.uninstaller.terminate()
+        }
     }
 
     func refreshLoginItemStatus() {

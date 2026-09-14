@@ -51,6 +51,7 @@ def shell_config(values):
         'LA_INSTALLER_IDENTITY': 'Developer ID Installer: ' + values['AWAKE_SIGNING_NAME'] + ' (' + values['AWAKE_TEAM_ID'] + ')',
         'LA_NOTARY_PROFILE': values['AWAKE_NOTARY_PROFILE'],
         'LA_SIGNING_REQUIREMENT': '=identifier "' + values['AWAKE_BUNDLE_ID'] + '" and anchor apple generic and certificate leaf[subject.OU] = "' + values['AWAKE_TEAM_ID'] + '"',
+        'LA_RECOVERY_SIGNING_REQUIREMENT': '=identifier "' + values['AWAKE_BUNDLE_ID'] + '.recovery" and anchor apple generic and certificate leaf[subject.OU] = "' + values['AWAKE_TEAM_ID'] + '"',
     }
     return '# Generated from config/Product.xcconfig; do not edit.\n' + ''.join(
         'typeset -g ' + key + '=' + shlex.quote(value) + '\n' for key, value in shell.items())
