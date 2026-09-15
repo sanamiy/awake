@@ -28,6 +28,8 @@ The installer's instructions are currently in Japanese.
 3. Close the lid. Your tasks keep running.
 4. When you return, open the lid and unlock your screen. Awake Mode ends automatically.
 
+If the battery is above your limit or your Mac is plugged in, sleep prevention starts with a confirmation sound. On battery at or below the limit, the screen locks without a sound, and your Mac sleeps as usual when you close the lid or normal sleep conditions are met.
+
 ## What happens when you close the lid
 
 While Awake Mode is active:
@@ -42,9 +44,9 @@ While Awake Mode is active:
 
 | Setting | Description | Default |
 | --- | --- | --- |
+| Start shortcut | Keyboard shortcut to start Awake Mode | ⌃⌘W |
 | Keep-awake duration | Use the slider to select 15 min, 30 min, 1 hr, 2 hr, 4 hr, 8 hr, 24 hr, or Unlimited | 120 min |
 | Battery limit | Charge level at which to stop when running on battery; select 5–95% in 5% steps with the slider | 30% |
-| Start shortcut | Keyboard shortcut to start Awake Mode | ⌃⌘W |
 
 With Unlimited selected, Awake Mode still ends when you unlock the screen, reach the battery limit while on battery power, or quit the app.
 
@@ -60,7 +62,7 @@ Awake launches at login, but sleep prevention does not start until you press the
 
 To update, quit Awake with ⌘Q, then install the new PKG. To use Awake with another macOS user account, sign in to that account and run the PKG installer there too.
 
-To uninstall, click “Uninstall” at the bottom right of the settings window. After the settings are removed, click “Show in Finder and Quit,” then move Awake to the Trash in Finder. Your duration, battery limit, and shortcut preferences are kept for a future reinstall.
+To uninstall, open Awake's settings window and choose “Uninstall…” from the Awake menu in the menu bar. After the settings are removed, click “Show in Finder and Quit,” then move Awake to the Trash in Finder. Your duration, battery limit, and shortcut preferences are kept for a future reinstall.
 
 ## Troubleshooting
 

@@ -101,7 +101,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         Task { try? await model.perform(.start) }
     }
 
+    @objc func requestUninstall() {
+        guard !model.isBusy, !model.didFinishUninstallHandoff else { return }
+        showSettings()
+        model.requestUninstall()
+    }
+
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(requestUninstall) {
+            return !model.isBusy && !model.didFinishUninstallHandoff
+        }
         if menuItem.action == #selector(enterAwakeMode) {
             return !model.isBusy && !model.isUninstallPending && !model.didFinishUninstallHandoff
         }
@@ -115,14 +124,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         let start = appMenu.addItem(withTitle: L10n.text("Awake Modeに入る"), action: #selector(enterAwakeMode), keyEquivalent: "")
         start.target = self
         start.image = NSImage(systemSymbolName: "lock", accessibilityDescription: nil)
-        appMenu.addItem(.separator())
-        let settings = appMenu.addItem(withTitle: L10n.text("設定を開く…"), action: #selector(showSettings), keyEquivalent: ",")
+        let settings = appMenu.addItem(withTitle: L10n.text("設定ウインドウを開く"), action: #selector(showSettings), keyEquivalent: ",")
         settings.target = self
-        appMenu.addItem(withTitle: L10n.text("ウインドウを閉じる"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        appMenu.addItem(withTitle: L10n.text("設定ウインドウを閉じる"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         appMenu.addItem(.separator())
-        let quit = appMenu.addItem(withTitle: L10n.text("%@を終了", AppIdentity.name), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quit = appMenu.addItem(withTitle: L10n.text("アプリを終了"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         // nil restores AppKit's automatic quit symbol; an empty image suppresses it.
         quit.image = NSImage(size: NSSize(width: 16, height: 16))
+        appMenu.addItem(.separator())
+        let uninstall = appMenu.addItem(withTitle: L10n.text("アンインストール…"), action: #selector(requestUninstall), keyEquivalent: "")
+        uninstall.target = self
+        uninstall.image = NSImage(size: NSSize(width: 16, height: 16))
         appItem.submenu = appMenu
         menu.addItem(appItem)
         let edit = NSMenuItem()

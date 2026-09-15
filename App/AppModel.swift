@@ -16,6 +16,7 @@ final class AppModel: ObservableObject {
     var needsRepair: Bool { installationFailure != nil }
     @Published private(set) var needsRecovery = false
     @Published private(set) var isBusy = false
+    @Published var isUninstallConfirmationPresented = false
     @Published var failure: AppFailure?
     // Keep the actual error, but let the current permission/installation sections
     // explain those conditions without a second, potentially stale message.
@@ -40,13 +41,20 @@ final class AppModel: ObservableObject {
     private var isRefreshing = false
     private let lockedSession: ScreenLockSession
     private let lidDisplaySleep: LidDisplaySleep
+    private let playStartSound: () -> Void
     private var screenMonitor: Task<Void, Never>?
     private var unlockObserver: NSObjectProtocol?
 
     init(runtime: RuntimeClient = .live, preferencesStore: UserDefaults = .standard,
          lockedSession: ScreenLockSession? = nil, lidDisplaySleep: LidDisplaySleep? = nil,
          monitorSystemEvents: Bool = true, uninstallProgress: UninstallProgress = .init(),
-         uninstaller: UninstallSystemActions? = nil, hotKey: GlobalHotKey? = nil) {
+         uninstaller: UninstallSystemActions? = nil, hotKey: GlobalHotKey? = nil,
+         playStartSound: @escaping () -> Void = {
+             let sound = NSSound(named: NSSound.Name("Submarine"))
+             sound?.volume = 0.5
+             _ = sound?.play()
+         }) {
+        self.playStartSound = playStartSound
         self.hotKey = hotKey ?? GlobalHotKey()
         self.monitorSystemEvents = monitorSystemEvents
         self.uninstallProgress = uninstallProgress
@@ -277,10 +285,13 @@ final class AppModel: ObservableObject {
             do { try hotKey.setSuspended(false, for: .locking) }
             catch { failure = AppFailure.normalize(error, fallback: .shortcut) }
         }
-        try await lockedSession.start(
+        let lockOnlyReason = try await lockedSession.start(
             enable: { try await self.runtime.perform(.start(snapshot)) },
             restore: { try await self.restoreSleep(.stop) })
+        if let lockOnlyReason, failure == nil { failure = lockOnlyReason }
         needsRecovery = false
+        // Playback is best-effort feedback, not part of the power/lock transaction.
+        if lockOnlyReason == nil { playStartSound() }
     }
 
     private func restoreSleep(_ action: RuntimeClient.Action) async throws {
@@ -299,6 +310,12 @@ final class AppModel: ObservableObject {
             needsRecovery = true
             throw error
         }
+    }
+
+    func requestUninstall() {
+        guard !isBusy, !didFinishUninstallHandoff else { return }
+        if isReadyForFinder { Task { await revealInFinderAndQuit() } }
+        else { isUninstallConfirmationPresented = true }
     }
 
     func uninstall() async {

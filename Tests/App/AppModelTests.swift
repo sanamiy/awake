@@ -60,6 +60,8 @@ final class AppModelTests: AppModelTestCase {
     // MARK: - Session lifecycle and recovery
 
     func testStartAndStopUpdateSessionAndReleaseBusyState() async throws {
+        XCTAssertEqual(startSoundCount, 0)
+        session.requestLock = { XCTAssertEqual(self.startSoundCount, 0) }
         session.prepareLock = { XCTAssertTrue(self.model.isBusy) }
         try await model.perform(.start)
         XCTAssertEqual(session.phase, .locked)
@@ -113,6 +115,7 @@ final class AppModelTests: AppModelTestCase {
     }
 
     func testLockFailureRollsBackWithoutLeavingRecoveryState() async {
+        defer { XCTAssertEqual(startSoundCount, 0) }
         session.requestLock = { throw AppFailure(code: .screenLock) }
         await expectFailure(.start, .screenLock)
         XCTAssertEqual(session.phase, .idle)
@@ -163,8 +166,9 @@ final class AppModelTests: AppModelTestCase {
     }
 
     func testFailedStartWithSuccessfulRollbackDoesNotSuggestRecovery() async {
-        await runner.setExit(86, for: "_start")
-        await expectFailure(.start, .batteryLow)
+        defer { XCTAssertEqual(startSoundCount, 0) }
+        await runner.setExit(87, for: "_start")
+        await expectFailure(.start, .powerStart)
         XCTAssertFalse(model.needsRecovery)
         XCTAssertEqual(session.phase, .idle)
     }
@@ -262,7 +266,44 @@ final class AppModelTests: AppModelTestCase {
         XCTAssertFalse(model.isBusy, file: file, line: line)
     }
 
+    func testBatteryCutoffIsSuccessfulLockOnlyWithoutAutomaticRestart() async throws {
+        await runner.setExit(86, for: "_start")
+        var locks = 0
+        session.requestLock = { locks += 1 }
+        try await model.perform(.start)
+        XCTAssertEqual(locks, 1)
+        XCTAssertEqual(startSoundCount, 0)
+        XCTAssertEqual(model.failure?.code, .batteryLow)
+        XCTAssertFalse(model.needsRecovery)
+        XCTAssertEqual(session.phase, .idle)
+        let actions = await runner.actions
+        XCTAssertEqual(actions, ["_start", "stop"])
+        await runner.setExit(0, for: "_start")
+        await model.monitorSession()
+        let afterCharging = await runner.actions
+        XCTAssertEqual(afterCharging, actions)
+        try await model.perform(.start)
+        XCTAssertEqual(session.phase, .locked)
+        XCTAssertNil(model.failure)
+        XCTAssertEqual(startSoundCount, 1)
+    }
+
     // MARK: - Uninstall and persisted progress
+
+    func testUninstallRequestOnlyShowsConfirmationAndCanBeCancelled() async throws {
+        model.requestUninstall()
+        XCTAssertTrue(model.isUninstallConfirmationPresented)
+        let actions = await runner.actions
+        XCTAssertTrue(actions.isEmpty)
+        XCTAssertFalse(model.isUninstallPending)
+        model.isUninstallConfirmationPresented = false
+        XCTAssertNil(progress.load())
+        session.requestLock = {
+            self.model.requestUninstall()
+            XCTAssertFalse(self.model.isUninstallConfirmationPresented)
+        }
+        try await model.perform(.start)
+    }
 
     func testPartialUninstallSuppressesRepairAndBackgroundRegistrationGuidance() async throws {
         try FileManager.default.removeItem(at: directory.appendingPathComponent("installed-cli"))

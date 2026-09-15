@@ -2,31 +2,19 @@ import SwiftUI
 
 struct ContentView: View {
     @ObservedObject var model: AppModel
-    @State private var confirmUninstall = false
 
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 20) {
                 header
-                if let failure = model.installationFailure {
-                    Text(failure.localizedDescription)
-                        .font(.caption).foregroundStyle(.orange)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
                 preferences
-                if model.isBusy {
-                    ProgressView().controlSize(.small)
-                        .accessibilityLabel(L10n.text("処理中"))
-                }
-                messages
-                if model.needsAccessibilityPermission && !model.isUninstallPending { screenLockSettings }
-                footer
+                noticeArea
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(24)
         }
         .frame(minWidth: 480, minHeight: 380)
-        .confirmationDialog(L10n.text("%@をアンインストールしますか？", AppIdentity.name), isPresented: $confirmUninstall, titleVisibility: .visible) {
+        .confirmationDialog(L10n.text("%@をアンインストールしますか？", AppIdentity.name), isPresented: $model.isUninstallConfirmationPresented, titleVisibility: .visible) {
             Button(L10n.text("アンインストール"), role: .destructive) { Task { await model.uninstall() } }
             Button(L10n.text("キャンセル"), role: .cancel) { }
                 .accessibilityIdentifier("cancel-uninstall")
@@ -59,6 +47,8 @@ struct ContentView: View {
         if model.isReadyForFinder {
             Text(L10n.text("設定の削除が完了しました。Finderで%@をゴミ箱へ移してください。", AppIdentity.name))
                 .font(.callout).fixedSize(horizontal: false, vertical: true)
+            Button(L10n.text("Finderで表示して終了")) { Task { await model.revealInFinderAndQuit() } }
+                .disabled(model.isBusy)
         } else if model.isUninstallPending {
             Text(L10n.text("アンインストールは未完了です。残りの削除処理を再試行してください。"))
                 .font(.caption).fixedSize(horizontal: false, vertical: true)
@@ -69,29 +59,36 @@ struct ContentView: View {
             Button(L10n.text("停止を再試行")) { Task { await model.retryStop() } }
                 .disabled(model.isBusy)
         }
+        if let failure = model.visibleFailure {
+            Text(failure.displayMessage).font(.callout)
+                .foregroundStyle(failure.isInformational ? Color.secondary : Color.red)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        if let failure = model.installationFailure {
+            Text(failure.localizedDescription)
+                .font(.caption).foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        if model.needsAccessibilityPermission && !model.isUninstallPending { screenLockSettings }
         if let issue = model.loginItemIssue {
             Text(issue).font(.caption).foregroundStyle(.orange)
                 .fixedSize(horizontal: false, vertical: true)
             Button(L10n.text("ログイン項目の設定を開く")) { model.openLoginItemSettings() }
         }
-        if let failure = model.visibleFailure {
-            Text(failure.localizedDescription).font(.callout).foregroundStyle(.red).textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
-        }
     }
 
-    private var footer: some View {
-        Button {
-            if model.isReadyForFinder { Task { await model.revealInFinderAndQuit() } }
-            else { confirmUninstall = true }
-        } label: {
-            Label(model.isReadyForFinder ? L10n.text("Finderで表示して終了") :
-                    (model.isUninstallPending ? L10n.text("アンインストールを再試行") : L10n.text("アンインストール")),
-                  systemImage: model.isReadyForFinder ? "folder" : "trash")
+    private var noticeArea: some View {
+        // Reserve one stable slot, even when empty. Long diagnostics remain scrollable
+        // instead of moving the settings or hiding recovery/permission actions.
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 8) {
+                messages
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-            .accessibilityIdentifier("uninstall")
-            .font(.caption).disabled(model.isBusy)
-            .frame(maxWidth: .infinity, alignment: .trailing)
+        .frame(height: 100)
+        .accessibilityIdentifier("settings-notices")
     }
 
     private var screenLockSettings: some View {
@@ -106,9 +103,7 @@ struct ContentView: View {
             .accessibilityIdentifier("open-accessibility-settings")
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
     }
 }
 

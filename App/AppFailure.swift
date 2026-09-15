@@ -20,7 +20,7 @@ enum FailureCode: String {
         case .authorizationCancelled: return L10n.text("管理者認証をキャンセルしました。")
         case .authorizationFailed: return L10n.text("管理者認証による操作に失敗しました。")
         case .foreignSession: return L10n.text("%@のセッションではないため、電源設定を変更しません。別のスリープ制御ツールで解除してから再試行してください。", AppIdentity.name)
-        case .batteryLow: return L10n.text("バッテリー残量が設定した下限以下のため開始しません。")
+        case .batteryLow: return L10n.text("バッテリー残量が下限以下のため、画面ロックのみ行いました。")
         case .powerStart: return L10n.text("スリープ防止を開始できませんでした。")
         case .runtimeRemoval: return L10n.text("電源制御の設定を削除できませんでした。アンインストールを再試行してください。")
         case .loginRemoval: return L10n.text("ログイン時の自動起動を解除できませんでした。アンインストールを再試行してください。")
@@ -58,6 +58,9 @@ enum FailureCode: String {
 struct AppFailure: LocalizedError {
     let code: FailureCode
     var detail: String? = nil
+    var isInformational: Bool { code == .batteryLow }
+    /// Expected start restrictions are guidance; retain the full error for diagnostics.
+    var displayMessage: String { isInformational ? code.message : localizedDescription }
     var suggestsPowerRecovery: Bool {
         [.powerRestore, .powerUnknown, .runtimeUnavailable].contains(code)
     }

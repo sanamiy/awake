@@ -159,6 +159,43 @@ final class ScreenLockSessionTests: XCTestCase {
         XCTAssertEqual(value.phase, .idle)
     }
 
+    func testBatteryCutoffLocksOnlyAfterRestoringSleepAndDoesNotArmSession() async throws {
+        let value = session()
+        var events: [String] = []
+        value.requestLock = { events.append("lock") }
+        let reason = try await value.start(enable: {
+            events.append("start")
+            throw AppFailure(code: .batteryLow, detail: "86")
+        }, restore: { events.append("restore"); value.didStop() })
+        XCTAssertEqual(events, ["start", "restore", "lock"])
+        XCTAssertEqual(reason?.code, .batteryLow)
+        XCTAssertEqual(reason?.detail, "86")
+        XCTAssertEqual(value.phase, .idle)
+        value.observe(.locked)
+        value.didUnlock()
+        XCTAssertFalse(value.needsStop)
+    }
+
+    func testBatteryFallbackStillRequiresRestorationAndConfirmedLock() async {
+        for restorationFails in [true, false] {
+            let value = session()
+            value.readState = { .unlocked }
+            var requests = 0
+            value.requestLock = { requests += 1 }
+            do {
+                try await value.start(enable: { throw AppFailure(code: .batteryLow) }, restore: {
+                    if restorationFails { throw AppFailure(code: .powerRestore) }
+                    value.didStop()
+                })
+                XCTFail("Must not report lock-only success")
+            } catch {
+                XCTAssertEqual((error as? AppFailure)?.code, restorationFails ? .powerRestore : .screenLock)
+            }
+            XCTAssertEqual(requests, restorationFails ? 0 : 1)
+            XCTAssertEqual(value.needsStop, restorationFails)
+        }
+    }
+
     func testUnavailableSessionAfterLockFailsClosed() async throws {
         let value = session()
         try await value.start(enable: {}, restore: {})

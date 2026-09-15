@@ -63,15 +63,27 @@ final class ScreenLockSession {
 
     /// `restore` is the model's complete stop operation: it confirms power restoration
     /// and calls didStop() alongside the other recovery-state updates.
-    func start(enable: () async throws -> Void, restore: () async throws -> Void) async throws {
+    @discardableResult
+    func start(enable: () async throws -> Void, restore: () async throws -> Void) async throws -> AppFailure? {
         // Permission setup must finish before changing the power state.
         try prepareLock()
         phase = .awaitingLock
         do {
-            try await enable()
+            var lockOnlyReason: AppFailure?
+            do { try await enable() }
+            catch let reason as AppFailure where reason.code == .batteryLow {
+                // Only the runtime's battery cutoff permits lock-only fallback.
+                // Verify normal sleep first, including any previous awake session.
+                try await restore()
+                lockOnlyReason = reason
+                phase = .awaitingLock
+            }
             try requestLock()
             for _ in 0..<24 {
-                if readState() == .locked { phase = .locked; return }
+                if readState() == .locked {
+                    phase = lockOnlyReason == nil ? .locked : .idle
+                    return lockOnlyReason
+                }
                 try await pause()
             }
             throw AppFailure(code: .screenLock)

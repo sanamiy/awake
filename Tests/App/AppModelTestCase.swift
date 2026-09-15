@@ -15,6 +15,7 @@ class AppModelTestCase: XCTestCase {
     var uninstaller: UninstallSystemActions!
     var failBackgroundRemoval = false
     var lifecycleCalls: [String] = []
+    var startSoundCount = 0
 
     override func setUpWithError() throws {
         suite = "LidAwakeModelTests-\(UUID())"
@@ -37,6 +38,7 @@ class AppModelTestCase: XCTestCase {
         application = try TestApplicationBundle()
         failBackgroundRemoval = false
         lifecycleCalls = []
+        startSoundCount = 0
         uninstaller = UninstallSystemActions(applicationURL: application.app,
             unregisterLoginItem: {
                 self.lifecycleCalls.append("unregister")
@@ -73,7 +75,8 @@ class AppModelTestCase: XCTestCase {
     func makeModel(progress: UninstallProgress? = nil, hotKey: GlobalHotKey? = nil) -> AppModel {
         AppModel(runtime: runtime, preferencesStore: defaults, lockedSession: session, lidDisplaySleep: displaySleep,
             monitorSystemEvents: false, uninstallProgress: progress ?? self.progress, uninstaller: uninstaller,
-            hotKey: hotKey ?? GlobalHotKey(register: FakeHotKeyRegistry().register))
+            hotKey: hotKey ?? GlobalHotKey(register: FakeHotKeyRegistry().register),
+            playStartSound: { [weak self] in self?.startSoundCount += 1 })
     }
 
 }

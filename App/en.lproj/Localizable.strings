@@ -25,7 +25,7 @@
 "管理者認証をキャンセルしました。" = "Administrator authorization was canceled.";
 "管理者認証による操作に失敗しました。" = "The operation requiring administrator authorization failed.";
 "%@のセッションではないため、電源設定を変更しません。別のスリープ制御ツールで解除してから再試行してください。" = "This session does not belong to %@, so power settings were not changed. Stop sleep prevention in the other app, then try again.";
-"バッテリー残量が設定した下限以下のため開始しません。" = "Cannot start: the battery is at or below your limit.";
+"バッテリー残量が下限以下のため、画面ロックのみ行いました。" = "Screen locked without preventing sleep because the battery is at or below your limit.";
 "スリープ防止を開始できませんでした。" = "Could not start sleep prevention.";
 "電源制御の設定を削除できませんでした。アンインストールを再試行してください。" = "Could not remove the power control settings. Try uninstalling again.";
 "ログイン時の自動起動を解除できませんでした。アンインストールを再試行してください。" = "Could not remove the login item. Retry uninstalling.";
@@ -46,7 +46,6 @@
 "キーを設定" = "Set shortcut";
 "キーを入力" = "Press keys";
 "⌘ / ⌃ が必要" = "Include ⌘ or ⌃";
-"処理中" = "Working";
 "%@をアンインストールしますか？" = "Uninstall %@?";
 "アンインストール" = "Uninstall";
 "キャンセル" = "Cancel";
@@ -64,7 +63,6 @@
 "停止を再試行" = "Retry Stop";
 "ログイン項目の設定を開く" = "Open Login Items Settings";
 "Finderで表示して終了" = "Show in Finder and Quit";
-"アンインストールを再試行" = "Retry Uninstall";
 "画面ロックの許可" = "Allow screen locking";
 "初回はアクセシビリティで%@を許可してください。許可後に開始ショートカットをもう一度押してください。" = "Before using the shortcut, allow %@ in Accessibility settings. Then press the start shortcut again.";
 "アクセシビリティ設定を開く" = "Open Accessibility Settings";
@@ -72,10 +70,10 @@
 "ログイン時の自動起動が登録されていません。%@を終了して開き直してください。" = "Launch at login is not registered. Quit %@ and reopen it.";
 "ログイン時の自動起動の登録を確認できません。%@を終了して開き直してください。" = "Could not verify launch-at-login registration. Quit %@ and reopen it.";
 "ログイン時の自動起動の状態を確認できません。システム設定のログイン項目を確認してください。" = "Could not check launch-at-login status. Check Login Items in System Settings.";
-"設定を開く…" = "Open Settings…";
+"設定ウインドウを開く" = "Open Settings Window";
 "Awake Modeに入る" = "Enter Awake Mode";
-"ウインドウを閉じる" = "Close Window";
-"%@を終了" = "Quit %@";
+"設定ウインドウを閉じる" = "Close Settings Window";
+"アプリを終了" = "Quit App";
 "編集" = "Edit";
 "取り消す" = "Undo";
 "カット" = "Cut";
@@ -84,3 +82,4 @@
 "すべてを選択" = "Select All";
 "ディスプレイの制御サービスが見つかりません。" = "The display control service could not be found.";
 "%@ (%@)" = "%@ (%@)";
+"アンインストール…" = "Uninstall…";
